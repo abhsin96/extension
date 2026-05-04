@@ -208,8 +208,17 @@ var apiClient = {
 var client_default = apiClient;
 
 // src/background.js
+var BUILD_API_KEY = ""
 chrome.runtime.onInstalled.addListener(() => {
   console.log("YouTube Q&A: service worker installed");
+  if (BUILD_API_KEY) {
+    client_default.setApiKey(BUILD_API_KEY).catch(console.error);
+  }
+});
+chrome.runtime.onStartup.addListener(() => {
+  if (BUILD_API_KEY) {
+    client_default.setApiKey(BUILD_API_KEY).catch(console.error);
+  }
 });
 async function handleVideoChanged({ videoId }) {
   const health = await client_default.pingHealth();

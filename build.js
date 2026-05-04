@@ -4,6 +4,37 @@ import path from 'path'
 
 const isWatch = process.argv.includes('--watch')
 
+// ---------------------------------------------------------------------------
+// Load .env (if present) — no extra dependencies needed
+// ---------------------------------------------------------------------------
+
+function loadEnv(filePath = '.env') {
+  if (!fs.existsSync(filePath)) return {}
+  return Object.fromEntries(
+    fs.readFileSync(filePath, 'utf8')
+      .split('\n')
+      .filter((line) => line.trim() && !line.startsWith('#'))
+      .map((line) => {
+        const eq = line.indexOf('=')
+        return [line.slice(0, eq).trim(), line.slice(eq + 1).trim()]
+      }),
+  )
+}
+
+const env = loadEnv()
+const OPENAI_API_KEY = env.OPENAI_API_KEY ?? ''
+
+// Expose as a compile-time constant so the bundle never imports Node APIs.
+const define = {
+  __OPENAI_API_KEY__: JSON.stringify(OPENAI_API_KEY),
+}
+
+if (OPENAI_API_KEY) {
+  console.log('Injecting OPENAI_API_KEY from .env ✓')
+} else {
+  console.warn('Warning: OPENAI_API_KEY not found in .env — key will be empty')
+}
+
 const entryPoints = [
   'src/background.js',
   'src/content_script.js',
@@ -43,6 +74,7 @@ const buildOptions = {
   target: 'chrome120',
   format: 'esm',
   bundle: true,
+  define,
 }
 
 if (isWatch) {

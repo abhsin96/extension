@@ -9,6 +9,7 @@ let messageListener = null
 const chrome = {
   runtime: {
     onInstalled: { addListener: vi.fn() },
+    onStartup: { addListener: vi.fn() },
     onMessage: {
       addListener: vi.fn((fn) => {
         messageListener = fn

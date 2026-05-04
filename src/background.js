@@ -17,8 +17,21 @@
 
 import apiClient from './api/client.js'
 
+// Injected at build time from .env — empty string when not set.
+
+const BUILD_API_KEY = __OPENAI_API_KEY__
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log('YouTube Q&A: service worker installed')
+  if (BUILD_API_KEY) {
+    apiClient.setApiKey(BUILD_API_KEY).catch(console.error)
+  }
+})
+
+chrome.runtime.onStartup.addListener(() => {
+  if (BUILD_API_KEY) {
+    apiClient.setApiKey(BUILD_API_KEY).catch(console.error)
+  }
 })
 
 // ---------------------------------------------------------------------------
