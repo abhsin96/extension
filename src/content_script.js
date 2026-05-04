@@ -1,17 +1,10 @@
 /**
  * Content script — injected on youtube.com/watch* pages at document_idle.
- *
- * Detection strategy (most to least reliable):
- *   1. yt-navigate-finish  — YouTube's own SPA navigation event
- *   2. history.pushState / replaceState patching — catches navigations that
- *      don't fire yt-navigate-finish
- *   3. popstate — browser back/forward
- *
- * All paths go through handleNavigation(), which deduplicates by video ID
- * and debounces 200 ms to collapse bursts from multiple simultaneous signals.
+ * Handles video ID detection AND the Q&A chat sidebar.
  */
 
 import { extractVideoId } from './utils/videoId.js'
+import { createSidebar, msgId } from './sidebar.js'
 
 const SENTINEL = '[YouTube Q&A] content script active'
 const DEBOUNCE_MS = 200
@@ -38,12 +31,49 @@ function resolveAbsolute(url) {
 }
 
 // ---------------------------------------------------------------------------
-// Core logic
+// Sidebar
+// ---------------------------------------------------------------------------
+
+let currentVideoId = null
+
+document.getElementById('yt-qa-root')?.remove()
+
+const sidebar = createSidebar({
+  onSend: async (question) => {
+    if (!currentVideoId) {
+      sidebar.addMessage({ id: msgId(), role: 'error', text: 'No video detected — navigate to a YouTube watch page first.' })
+      return
+    }
+    sidebar.addMessage({ id: msgId(), role: 'user', text: question })
+    sidebar.setLoading(true)
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'ASK_QUESTION', videoId: currentVideoId, question })
+      if (res.ok) {
+        sidebar.addMessage({ id: msgId(), role: 'assistant', text: res.data.answer, refused: res.data.refused })
+      } else {
+        sidebar.addMessage({ id: msgId(), role: 'error', text: res.error.message })
+      }
+    } catch (err) {
+      sidebar.addMessage({ id: msgId(), role: 'error', text: err?.message ?? 'Connection error.' })
+    } finally {
+      sidebar.setLoading(false)
+    }
+  },
+})
+
+document.body.appendChild(sidebar.host)
+
+// ---------------------------------------------------------------------------
+// Navigation detection
 // ---------------------------------------------------------------------------
 
 let lastVideoId = null
 
 function broadcast(videoId, url) {
+  if (videoId !== currentVideoId) {
+    currentVideoId = videoId
+    sidebar.clearMessages()
+  }
   console.log(SENTINEL, { videoId, url })
   chrome.runtime.sendMessage({ type: 'VIDEO_CHANGED', videoId, url })
 }
@@ -58,16 +88,12 @@ function handleNavigation(rawUrl) {
   debouncedBroadcast(videoId, url)
 }
 
-// ---------------------------------------------------------------------------
-// Event listeners
-// ---------------------------------------------------------------------------
-
-// Primary: YouTube's own SPA event (most reliable)
+// Primary: YouTube's own SPA event
 document.addEventListener('yt-navigate-finish', (e) => {
   handleNavigation(e.detail?.url)
 })
 
-// Secondary: History API patching (fires when yt-navigate-finish doesn't)
+// Secondary: History API patching
 const _pushState = history.pushState.bind(history)
 history.pushState = function (state, title, url) {
   _pushState(state, title, url)
@@ -82,8 +108,5 @@ history.replaceState = function (state, title, url) {
 
 window.addEventListener('popstate', () => handleNavigation())
 
-// ---------------------------------------------------------------------------
 // Initial load
-// ---------------------------------------------------------------------------
-
 handleNavigation()
