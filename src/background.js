@@ -11,6 +11,8 @@
  *   INGEST_VIDEO   { videoId, force? } → apiClient.ingest
  *   ASK_QUESTION   { videoId, question, k? } → apiClient.ask
  *   GET_STATUS     {}                  → apiClient.getStatus
+ *   SET_API_KEY    { key }             → apiClient.setApiKey
+ *   CLEAR_API_KEY  {}                  → apiClient.clearApiKey
  */
 
 import apiClient from './api/client.js'
@@ -41,6 +43,16 @@ async function handleGetStatus() {
   return apiClient.getStatus()
 }
 
+async function handleSetApiKey({ key }) {
+  await apiClient.setApiKey(key)
+  return {}
+}
+
+async function handleClearApiKey() {
+  await apiClient.clearApiKey()
+  return {}
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -50,6 +62,8 @@ const HANDLERS = {
   INGEST_VIDEO: handleIngestVideo,
   ASK_QUESTION: handleAskQuestion,
   GET_STATUS: handleGetStatus,
+  SET_API_KEY: handleSetApiKey,
+  CLEAR_API_KEY: handleClearApiKey,
 }
 
 /**

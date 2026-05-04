@@ -22,6 +22,18 @@ function copyPublicFiles() {
     fs.copyFileSync(file, dest)
     console.log(`Copied ${file} → ${dest}`)
   }
+  // Copy icons directory
+  const iconsDir = path.join('public', 'icons')
+  if (fs.existsSync(iconsDir)) {
+    const destDir = path.join('dist', 'icons')
+    fs.mkdirSync(destDir, { recursive: true })
+    for (const file of fs.readdirSync(iconsDir)) {
+      const src = path.join(iconsDir, file)
+      const dest = path.join(destDir, file)
+      fs.copyFileSync(src, dest)
+    }
+    console.log(`Copied public/icons/ → dist/icons/`)
+  }
 }
 
 const buildOptions = {

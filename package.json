@@ -13,6 +13,8 @@
     "coverage": "vitest run --coverage",
     "build": "node build.js",
     "build:watch": "node build.js --watch",
+    "lint:ext": "node scripts/validate-manifest.js",
+    "generate-icons": "node scripts/generate-icons.js",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.0.0",
+    "web-ext": "^8.0.0",
     "esbuild": "^0.23.0",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
