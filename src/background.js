@@ -13,9 +13,13 @@
  *   GET_STATUS     {}                  → apiClient.getStatus
  *   SET_API_KEY    { key }             → apiClient.setApiKey
  *   CLEAR_API_KEY  {}                  → apiClient.clearApiKey
+ *   GET_CURRENT_VIDEO {}                  → current tracked video ID
  */
 
 import apiClient from './api/client.js'
+
+// In-memory single source of truth; restored from session storage on startup.
+let currentVideoId = null
 
 // Injected at build time from .env — empty string when not set.
 
@@ -34,13 +38,20 @@ chrome.runtime.onStartup.addListener(() => {
   }
 })
 
+// Restore last known video ID across service worker restarts
+chrome.storage.session.get('currentVideoId').then(({ currentVideoId: id }) => {
+  if (id) currentVideoId = id
+}).catch(() => {})
+
 // ---------------------------------------------------------------------------
 // Handlers — each returns a Promise that resolves with the data to send back
 // ---------------------------------------------------------------------------
 
-async function handleVideoChanged({ videoId }) {
+async function handleVideoChanged({ videoId, url }) {
+  currentVideoId = videoId
+  await chrome.storage.session.set({ currentVideoId: videoId })
   const health = await apiClient.pingHealth()
-  return { videoId, health }
+  return { videoId, url: url ?? null, health }
 }
 
 async function handleIngestVideo({ videoId, force = false }) {
@@ -66,6 +77,12 @@ async function handleClearApiKey() {
   return {}
 }
 
+async function handleGetCurrentVideo() {
+  if (currentVideoId) return { videoId: currentVideoId }
+  const { currentVideoId: stored } = await chrome.storage.session.get('currentVideoId')
+  return { videoId: stored ?? null }
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -77,6 +94,7 @@ const HANDLERS = {
   GET_STATUS: handleGetStatus,
   SET_API_KEY: handleSetApiKey,
   CLEAR_API_KEY: handleClearApiKey,
+  GET_CURRENT_VIDEO: handleGetCurrentVideo,
 }
 
 /**

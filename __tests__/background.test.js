@@ -16,6 +16,12 @@ const chrome = {
       }),
     },
   },
+  storage: {
+    session: {
+      get: vi.fn().mockResolvedValue({}),
+      set: vi.fn().mockResolvedValue(undefined),
+    },
+  },
 }
 
 vi.stubGlobal('chrome', chrome)
@@ -64,6 +70,25 @@ afterEach(() => {
 })
 
 // ---------------------------------------------------------------------------
+// GET_CURRENT_VIDEO
+// ---------------------------------------------------------------------------
+
+describe('GET_CURRENT_VIDEO', () => {
+  it('returns null when no video has been set', async () => {
+    chrome.storage.session.get.mockResolvedValue({ currentVideoId: null })
+    const res = await dispatch({ type: 'GET_CURRENT_VIDEO' })
+    expect(res).toEqual({ ok: true, data: { videoId: null } })
+  })
+
+  it('returns videoId from session storage when memory is cold', async () => {
+    chrome.storage.session.get.mockResolvedValue({ currentVideoId: 'storedVid' })
+    const res = await dispatch({ type: 'GET_CURRENT_VIDEO' })
+    expect(res.ok).toBe(true)
+    expect(res.data.videoId).toBe('storedVid')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // VIDEO_CHANGED
 // ---------------------------------------------------------------------------
 
@@ -74,11 +99,11 @@ describe('VIDEO_CHANGED', () => {
     expect(apiClient.pingHealth).toHaveBeenCalledOnce()
   })
 
-  it('returns ok: true with videoId and health', async () => {
+  it('returns ok: true with videoId, url and health', async () => {
     const health = { status: 'ok', has_api_key: true }
     apiClient.pingHealth.mockResolvedValue(health)
-    const res = await dispatch({ type: 'VIDEO_CHANGED', videoId: 'abc' })
-    expect(res).toEqual({ ok: true, data: { videoId: 'abc', health } })
+    const res = await dispatch({ type: 'VIDEO_CHANGED', videoId: 'abc', url: 'https://youtube.com/watch?v=abc' })
+    expect(res).toEqual({ ok: true, data: { videoId: 'abc', url: 'https://youtube.com/watch?v=abc', health } })
   })
 
   it('returns ok: false on apiClient error', async () => {
