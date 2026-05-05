@@ -619,6 +619,19 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
   _bodyObserver.observe(document.body, { childList: true, subtree: true })
   _attachFlexyObserver() // attach immediately if already present
 
+  function showToggleButton() {
+    toggleBtn.style.display = 'flex'
+  }
+
+  function hideToggleButton() {
+    toggleBtn.style.display = 'none'
+    // Also close the sidebar if it's open when hiding the button
+    if (_open) close()
+  }
+
+  // Initially hide the toggle button until we check transcript availability
+  hideToggleButton()
+
   return {
     host,
     open,
@@ -634,6 +647,8 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
     clearCancellable,
     showToast,
     hideToast,
+    showToggleButton,
+    hideToggleButton,
     isOpen: () => _open,
   }
 }

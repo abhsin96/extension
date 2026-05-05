@@ -37,6 +37,7 @@ function resolveAbsolute(url) {
 // ---------------------------------------------------------------------------
 
 let currentVideoId = null
+let hasTranscript = false
 
 document.getElementById('yt-qa-root')?.remove()
 injectSeekBridge()
@@ -73,6 +74,36 @@ if (!document.getElementById('yt-qa-root')) {
   requestAnimationFrame(mountSidebar)
 }
 
+// Check if the current video has a transcript available
+async function checkTranscriptAvailability(videoId) {
+  if (!videoId) {
+    hasTranscript = false
+    sidebar.hideToggleButton()
+    return
+  }
+
+  try {
+    // Try to check if transcript is available by attempting a lightweight check
+    // We'll use the ingest endpoint with force=false to see if it can access the transcript
+    const response = await chrome.runtime.sendMessage({
+      type: 'CHECK_TRANSCRIPT',
+      videoId,
+    })
+
+    hasTranscript = response?.ok && response?.data?.hasTranscript
+
+    if (hasTranscript) {
+      sidebar.showToggleButton()
+    } else {
+      sidebar.hideToggleButton()
+    }
+  } catch (err) {
+    console.warn('[YouTube Q&A] Failed to check transcript availability:', err)
+    hasTranscript = false
+    sidebar.hideToggleButton()
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Navigation detection
 // ---------------------------------------------------------------------------
@@ -83,6 +114,8 @@ function broadcast(videoId, url) {
   if (videoId !== currentVideoId) {
     currentVideoId = videoId
     sidebar.clearMessages()
+    // Check transcript availability when video changes
+    checkTranscriptAvailability(videoId)
   }
   console.log(SENTINEL, { videoId, url })
   chrome.runtime.sendMessage({ type: 'VIDEO_CHANGED', videoId, url })

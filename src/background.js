@@ -39,9 +39,12 @@ chrome.runtime.onStartup.addListener(() => {
 })
 
 // Restore last known video ID across service worker restarts
-chrome.storage.session.get('currentVideoId').then(({ currentVideoId: id }) => {
-  if (id) currentVideoId = id
-}).catch(() => {})
+chrome.storage.session
+  .get('currentVideoId')
+  .then(({ currentVideoId: id }) => {
+    if (id) currentVideoId = id
+  })
+  .catch(() => {})
 
 // ---------------------------------------------------------------------------
 // Handlers — each returns a Promise that resolves with the data to send back
@@ -87,6 +90,24 @@ async function handlePingHealth() {
   return apiClient.pingHealth()
 }
 
+async function handleCheckTranscript({ videoId }) {
+  try {
+    // Try to ingest with force=false to check if transcript is available
+    // If the video already exists, it will return cached:true
+    // If transcript is unavailable, it will throw TranscriptDisabledError
+    const result = await apiClient.ingest(videoId, { force: false })
+    return { hasTranscript: true, cached: result.cached }
+  } catch (err) {
+    // TranscriptDisabledError means no transcript available
+    if (err.code === 'TRANSCRIPT_DISABLED') {
+      return { hasTranscript: false }
+    }
+    // For other errors (network, etc.), assume transcript might be available
+    // but we can't confirm right now
+    return { hasTranscript: false, error: err.message }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -96,6 +117,7 @@ const HANDLERS = {
   INGEST_VIDEO: handleIngestVideo,
   ASK_QUESTION: handleAskQuestion,
   PING_HEALTH: handlePingHealth,
+  CHECK_TRANSCRIPT: handleCheckTranscript,
   GET_STATUS: handleGetStatus,
   SET_API_KEY: handleSetApiKey,
   CLEAR_API_KEY: handleClearApiKey,
