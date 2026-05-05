@@ -147,10 +147,17 @@ button:disabled { opacity: .4; cursor: default; }
 .send-btn:not(:disabled):hover { background: #aa0000; }
 .clear-btn { background: #f0f0f0; color: #606060; }
 .clear-btn:hover { background: #e0e0e0; }
+.clear-btn--confirm { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+.clear-btn--confirm:hover { background: #fee2e2; }
 @media (prefers-color-scheme: dark) {
   .clear-btn { background: #3f3f3f; color: #aaa; }
   .clear-btn:hover { background: #4f4f4f; }
+  .clear-btn--confirm { background: #2a1010; color: #f87171; border-color: #7f1d1d; }
+  .clear-btn--confirm:hover { background: #3a1515; }
 }
+
+/* Theater mode — sidebar remains a fixed overlay; keep open state intact */
+:host(.theater) .sidebar { top: 0; height: 100vh; }
 `
 
 function buildTemplate() {
@@ -209,6 +216,8 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
   let _open = false
   let _loading = false
   let loadingEl = null
+  let _clearPending = false
+  let _clearTimer = null
 
   // -- Open / Close --
   function open() {
@@ -220,7 +229,17 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
   function close() {
     _open = false
     host.classList.remove('open')
+    _resetClearPending()
     onClose?.()
+  }
+
+  // -- Clear confirmation (two-tap: first tap → "Sure?", second tap → confirm) --
+  function _resetClearPending() {
+    clearTimeout(_clearTimer)
+    _clearPending = false
+    clearBtn.textContent = 'Clear'
+    clearBtn.classList.remove('clear-btn--confirm')
+    clearBtn.setAttribute('aria-label', 'Clear conversation')
   }
 
   // -- Loading indicator --
@@ -291,7 +310,22 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
   toggleBtn.addEventListener('click', () => (_open ? close() : open()))
   closeBtn.addEventListener('click', close)
   sendBtn.addEventListener('click', handleSend)
-  clearBtn.addEventListener('click', clearMessages)
+
+  clearBtn.addEventListener('click', () => {
+    if (!_clearPending) {
+      // First tap: enter confirmation state
+      _clearPending = true
+      clearBtn.textContent = 'Sure?'
+      clearBtn.classList.add('clear-btn--confirm')
+      clearBtn.setAttribute('aria-label', 'Confirm clear conversation')
+      // Auto-reset after 3 s if not confirmed
+      _clearTimer = setTimeout(_resetClearPending, 3000)
+      return
+    }
+    // Second tap: confirmed
+    _resetClearPending()
+    clearMessages()
+  })
 
   textarea.addEventListener('input', () => { autoGrow(); updateSendBtn() })
 
@@ -315,16 +349,31 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
     host.classList.toggle('fullscreen', !!document.fullscreenElement)
   })
 
-  // Theater mode — YouTube sets `theater` attribute on ytd-watch-flexy
-  const theaterObserver = new MutationObserver(() => {
+  // Theater mode — watch ytd-watch-flexy for the `theater` attribute.
+  // We observe body for the element's arrival (SPA), then switch to watching
+  // the element itself so we don't fire on every attribute change site-wide.
+  function _syncTheater() {
     const flexy = document.querySelector('ytd-watch-flexy')
     host.classList.toggle('theater', flexy?.hasAttribute('theater') ?? false)
+  }
+
+  let _flexyObserver = null
+
+  function _attachFlexyObserver() {
+    const flexy = document.querySelector('ytd-watch-flexy')
+    if (!flexy || _flexyObserver) return
+    _flexyObserver = new MutationObserver(_syncTheater)
+    _flexyObserver.observe(flexy, { attributes: true, attributeFilter: ['theater'] })
+    _syncTheater()
+  }
+
+  // Watch for ytd-watch-flexy to be added to the DOM (SPA navigation)
+  const _bodyObserver = new MutationObserver(() => {
+    _attachFlexyObserver()
+    _syncTheater()
   })
-  theaterObserver.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['theater'],
-    subtree: true,
-  })
+  _bodyObserver.observe(document.body, { childList: true, subtree: true })
+  _attachFlexyObserver() // attach immediately if already present
 
   return {
     host,

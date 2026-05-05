@@ -146,8 +146,9 @@ describe('clearMessages', () => {
     expect(q('.message-list').children.length).toBe(0)
   })
 
-  it('clear button clears messages', () => {
+  it('clear button clears messages after two-tap confirmation', () => {
     api.addMessage({ id: '1', role: 'user', text: 'Q' })
+    q('.clear-btn').click()
     q('.clear-btn').click()
     expect(q('.message-list').children.length).toBe(0)
   })
@@ -233,5 +234,121 @@ describe('keyboard shortcuts', () => {
     q('.input').value = 'some text'
     shadow.querySelector('div').dispatchEvent(new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, bubbles: true }))
     expect(q('.input').value).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Clear button — two-tap confirmation
+// ---------------------------------------------------------------------------
+
+describe('clear button confirmation', () => {
+  beforeEach(() => {
+    api.addMessage({ id: '1', role: 'user', text: 'Q' })
+    api.addMessage({ id: '2', role: 'assistant', text: 'A' })
+  })
+
+  it('first click changes button text to "Sure?"', () => {
+    q('.clear-btn').click()
+    expect(q('.clear-btn').textContent).toBe('Sure?')
+  })
+
+  it('first click does NOT clear messages', () => {
+    q('.clear-btn').click()
+    expect(q('.message-list').children.length).toBe(2)
+  })
+
+  it('first click adds confirm CSS class', () => {
+    q('.clear-btn').click()
+    expect(q('.clear-btn').classList.contains('clear-btn--confirm')).toBe(true)
+  })
+
+  it('second click clears messages', () => {
+    q('.clear-btn').click()
+    q('.clear-btn').click()
+    expect(q('.message-list').children.length).toBe(0)
+  })
+
+  it('second click resets button text to "Clear"', () => {
+    q('.clear-btn').click()
+    q('.clear-btn').click()
+    expect(q('.clear-btn').textContent).toBe('Clear')
+  })
+
+  it('confirmation state resets after timeout', async () => {
+    vi.useFakeTimers()
+    q('.clear-btn').click()
+    expect(q('.clear-btn').textContent).toBe('Sure?')
+    vi.advanceTimersByTime(3001)
+    expect(q('.clear-btn').textContent).toBe('Clear')
+    expect(q('.message-list').children.length).toBe(2) // not cleared
+    vi.useRealTimers()
+  })
+
+  it('close() resets pending confirmation', () => {
+    api.open()
+    q('.clear-btn').click()
+    expect(q('.clear-btn').textContent).toBe('Sure?')
+    api.close()
+    expect(q('.clear-btn').textContent).toBe('Clear')
+    expect(q('.clear-btn').classList.contains('clear-btn--confirm')).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Fullscreen mode
+// ---------------------------------------------------------------------------
+
+describe('fullscreen mode', () => {
+  it('adds .fullscreen class to host when fullscreenchange fires with element', () => {
+    Object.defineProperty(document, 'fullscreenElement', { value: document.body, configurable: true })
+    document.dispatchEvent(new Event('fullscreenchange'))
+    expect(host.classList.contains('fullscreen')).toBe(true)
+  })
+
+  it('removes .fullscreen class when exiting fullscreen', () => {
+    Object.defineProperty(document, 'fullscreenElement', { value: document.body, configurable: true })
+    document.dispatchEvent(new Event('fullscreenchange'))
+
+    Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
+    document.dispatchEvent(new Event('fullscreenchange'))
+    expect(host.classList.contains('fullscreen')).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Theater mode
+// ---------------------------------------------------------------------------
+
+describe('theater mode', () => {
+  function makeFlexy(theater = false) {
+    const el = document.createElement('ytd-watch-flexy')
+    if (theater) el.setAttribute('theater', '')
+    document.body.appendChild(el)
+    return el
+  }
+
+  afterEach(() => {
+    document.querySelector('ytd-watch-flexy')?.remove()
+  })
+
+  it('adds .theater class when ytd-watch-flexy has theater attribute', async () => {
+    const flexy = makeFlexy(true)
+    // Trigger a DOM mutation so the body observer fires
+    document.body.appendChild(document.createElement('span'))
+    // Allow MutationObserver microtasks to run
+    await Promise.resolve()
+    expect(host.classList.contains('theater')).toBe(true)
+    flexy.remove()
+  })
+
+  it('removes .theater class when theater attribute is removed', async () => {
+    const flexy = makeFlexy(true)
+    document.body.appendChild(document.createElement('span'))
+    await Promise.resolve()
+
+    flexy.removeAttribute('theater')
+    await Promise.resolve()
+    expect(host.classList.contains('theater')).toBe(false)
+    flexy.remove()
   })
 })

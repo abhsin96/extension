@@ -61,7 +61,27 @@ const sidebar = createSidebar({
   },
 })
 
-document.body.appendChild(sidebar.host)
+// Inject sidebar host adjacent to #secondary (YouTube's recommendations panel)
+// so it sits logically next to the player. The host uses position:fixed so the
+// actual parent does not affect visual layout, but placement here keeps the
+// extension's node organised with the page structure.
+function mountSidebar() {
+  if (document.getElementById('yt-qa-root')) return
+  const anchor = document.querySelector('#secondary, ytd-watch-next-secondary-results-renderer')
+  if (anchor) {
+    anchor.parentElement.insertBefore(sidebar.host, anchor)
+  } else {
+    document.body.appendChild(sidebar.host)
+  }
+}
+
+mountSidebar()
+
+// Retry once after a short delay for SPA navigations where #secondary is added
+// to the DOM after the content script has already run.
+if (!document.getElementById('yt-qa-root')) {
+  requestAnimationFrame(mountSidebar)
+}
 
 // ---------------------------------------------------------------------------
 // Navigation detection
