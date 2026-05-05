@@ -36,6 +36,8 @@ vi.mock('../src/api/client.js', () => ({
     ingest: vi.fn(),
     ask: vi.fn(),
     getStatus: vi.fn(),
+    setApiKey: vi.fn(),
+    clearApiKey: vi.fn(),
   },
 }))
 
@@ -206,6 +208,33 @@ describe('GET_STATUS', () => {
     const err = Object.assign(new Error('unreachable'), { code: 'BACKEND_UNREACHABLE' })
     apiClient.getStatus.mockRejectedValue(err)
     const res = await dispatch({ type: 'GET_STATUS' })
+    expect(res.ok).toBe(false)
+    expect(res.error.code).toBe('BACKEND_UNREACHABLE')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// PING_HEALTH
+// ---------------------------------------------------------------------------
+
+describe('PING_HEALTH', () => {
+  it('calls apiClient.pingHealth', async () => {
+    apiClient.pingHealth.mockResolvedValue({ status: 'ok' })
+    await dispatch({ type: 'PING_HEALTH' })
+    expect(apiClient.pingHealth).toHaveBeenCalledOnce()
+  })
+
+  it('returns ok: true with health data', async () => {
+    const health = { status: 'ok', has_api_key: true }
+    apiClient.pingHealth.mockResolvedValue(health)
+    const res = await dispatch({ type: 'PING_HEALTH' })
+    expect(res).toEqual({ ok: true, data: health })
+  })
+
+  it('returns ok: false when backend is unreachable', async () => {
+    const err = Object.assign(new Error('unreachable'), { code: 'BACKEND_UNREACHABLE' })
+    apiClient.pingHealth.mockRejectedValue(err)
+    const res = await dispatch({ type: 'PING_HEALTH' })
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('BACKEND_UNREACHABLE')
   })

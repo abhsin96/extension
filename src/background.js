@@ -83,6 +83,10 @@ async function handleGetCurrentVideo() {
   return { videoId: stored ?? null }
 }
 
+async function handlePingHealth() {
+  return apiClient.pingHealth()
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -91,6 +95,7 @@ const HANDLERS = {
   VIDEO_CHANGED: handleVideoChanged,
   INGEST_VIDEO: handleIngestVideo,
   ASK_QUESTION: handleAskQuestion,
+  PING_HEALTH: handlePingHealth,
   GET_STATUS: handleGetStatus,
   SET_API_KEY: handleSetApiKey,
   CLEAR_API_KEY: handleClearApiKey,

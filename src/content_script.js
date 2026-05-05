@@ -4,7 +4,8 @@
  */
 
 import { extractVideoId } from './utils/videoId.js'
-import { createSidebar, msgId } from './sidebar.js'
+import { createSidebar } from './sidebar.js'
+import { createQaSession } from './wiring.js'
 
 const SENTINEL = '[YouTube Q&A] content script active'
 const DEBOUNCE_MS = 200
@@ -39,26 +40,12 @@ let currentVideoId = null
 document.getElementById('yt-qa-root')?.remove()
 
 const sidebar = createSidebar({
-  onSend: async (question) => {
-    if (!currentVideoId) {
-      sidebar.addMessage({ id: msgId(), role: 'error', text: 'No video detected — navigate to a YouTube watch page first.' })
-      return
-    }
-    sidebar.addMessage({ id: msgId(), role: 'user', text: question })
-    sidebar.setLoading(true)
-    try {
-      const res = await chrome.runtime.sendMessage({ type: 'ASK_QUESTION', videoId: currentVideoId, question })
-      if (res.ok) {
-        sidebar.addMessage({ id: msgId(), role: 'assistant', text: res.data.answer, refused: res.data.refused })
-      } else {
-        sidebar.addMessage({ id: msgId(), role: 'error', text: res.error.message })
-      }
-    } catch (err) {
-      sidebar.addMessage({ id: msgId(), role: 'error', text: err?.message ?? 'Connection error.' })
-    } finally {
-      sidebar.setLoading(false)
-    }
-  },
+  onSend: (question) => session.handleSend(question, currentVideoId),
+})
+
+const session = createQaSession({
+  sidebar,
+  sendMessage: (msg) => chrome.runtime.sendMessage(msg),
 })
 
 // Inject sidebar host adjacent to #secondary (YouTube's recommendations panel)

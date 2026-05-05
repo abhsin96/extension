@@ -158,6 +158,45 @@ button:disabled { opacity: .4; cursor: default; }
 
 /* Theater mode — sidebar remains a fixed overlay; keep open state intact */
 :host(.theater) .sidebar { top: 0; height: 100vh; }
+
+/* ---- Skeleton shimmer placeholder ---- */
+.message--skeleton .message-bubble {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+  color: transparent; min-width: 160px; min-height: 1em;
+}
+@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+@media (prefers-color-scheme: dark) {
+  .message--skeleton .message-bubble {
+    background: linear-gradient(90deg, #2f2f2f 25%, #3a3a3a 50%, #2f2f2f 75%);
+    background-size: 200% 100%;
+  }
+}
+
+/* ---- Cancel button ---- */
+.cancel-btn { background: #f0f0f0; color: #606060; }
+.cancel-btn:hover { background: #e0e0e0; }
+@media (prefers-color-scheme: dark) {
+  .cancel-btn { background: #3f3f3f; color: #aaa; }
+  .cancel-btn:hover { background: #4f4f4f; }
+}
+
+/* ---- Toast banner ---- */
+.toast {
+  padding: 10px 16px; background: #fff3cd; color: #664d03;
+  border-bottom: 1px solid #ffda6a; font-size: 13px;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+@media (prefers-color-scheme: dark) {
+  .toast { background: #2a1f00; color: #ffd966; border-bottom-color: #664d03; }
+}
+.toast-action {
+  margin-left: auto; padding: 3px 10px; background: transparent;
+  border: 1px solid currentColor; border-radius: 4px; cursor: pointer;
+  font-size: 12px; color: inherit; flex-shrink: 0; font-family: inherit;
+}
+.toast-action:hover { background: rgba(0,0,0,.08); }
 `
 
 function buildTemplate() {
@@ -168,6 +207,7 @@ function buildTemplate() {
         <span class="sidebar-title">YouTube Q&amp;A</span>
         <button class="close-btn" aria-label="Close sidebar">✕</button>
       </header>
+      <div class="toast" hidden role="alert"></div>
       <div class="message-list" role="log" aria-live="polite" aria-label="Chat messages"></div>
       <footer class="sidebar-footer">
         <textarea
@@ -177,6 +217,7 @@ function buildTemplate() {
           aria-label="Question"
         ></textarea>
         <div class="action-row">
+          <button class="cancel-btn" hidden aria-label="Cancel">Cancel</button>
           <button class="clear-btn" aria-label="Clear conversation">Clear</button>
           <button class="send-btn" disabled aria-label="Send question">Send</button>
         </div>
@@ -212,12 +253,15 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
   const textarea = $('.input')
   const sendBtn = $('.send-btn')
   const clearBtn = $('.clear-btn')
+  const cancelBtn = $('.cancel-btn')
+  const toastEl = $('.toast')
 
   let _open = false
   let _loading = false
   let loadingEl = null
   let _clearPending = false
   let _clearTimer = null
+  let _onCancel = null
 
   // -- Open / Close --
   function open() {
@@ -243,19 +287,51 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
   }
 
   // -- Loading indicator --
-  function setLoading(loading) {
+  function setLoading(loading, { text = 'Thinking' } = {}) {
     _loading = loading
     updateSendBtn()
     if (loading && !loadingEl) {
       loadingEl = document.createElement('div')
       loadingEl.className = 'loading'
-      loadingEl.textContent = 'Thinking'
+      loadingEl.textContent = text
       messageList.appendChild(loadingEl)
       messageList.scrollTop = messageList.scrollHeight
     } else if (!loading && loadingEl) {
       loadingEl.remove()
       loadingEl = null
     }
+  }
+
+  // -- Cancel button --
+  function setCancellable(fn) {
+    _onCancel = fn
+    cancelBtn.hidden = false
+  }
+
+  function clearCancellable() {
+    _onCancel = null
+    cancelBtn.hidden = true
+  }
+
+  // -- Toast banner --
+  function showToast({ text, action, onAction } = {}) {
+    toastEl.innerHTML = ''
+    const msg = document.createElement('span')
+    msg.textContent = text ?? ''
+    toastEl.appendChild(msg)
+    if (action) {
+      const btn = document.createElement('button')
+      btn.className = 'toast-action'
+      btn.textContent = action
+      if (onAction) btn.addEventListener('click', onAction)
+      toastEl.appendChild(btn)
+    }
+    toastEl.hidden = false
+  }
+
+  function hideToast() {
+    toastEl.hidden = true
+    toastEl.innerHTML = ''
   }
 
   // -- Messages --
@@ -274,6 +350,33 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
     messageList.appendChild(msgDiv)
     messageList.scrollTop = messageList.scrollHeight
     return msgDiv
+  }
+
+  function addSkeletonMessage(id) {
+    const msgDiv = document.createElement('div')
+    msgDiv.className = 'message message--skeleton message--assistant'
+    msgDiv.dataset.id = id
+    const bubble = document.createElement('div')
+    bubble.className = 'message-bubble'
+    bubble.textContent = '\u00a0'
+    msgDiv.appendChild(bubble)
+    messageList.appendChild(msgDiv)
+    messageList.scrollTop = messageList.scrollHeight
+    return msgDiv
+  }
+
+  function finalizeMessage(id, { role, text, refused = false }) {
+    const el = messageList.querySelector(`[data-id="${id}"]`)
+    if (!el) return addMessage({ id, role, text, refused })
+    const effectiveRole = refused ? 'refusal' : role
+    el.className = `message message--${effectiveRole}`
+    el.dataset.role = role
+    el.querySelector('.message-bubble').textContent = text
+    return el
+  }
+
+  function removeMessage(id) {
+    messageList.querySelector(`[data-id="${id}"]`)?.remove()
   }
 
   function clearMessages() {
@@ -310,6 +413,7 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
   toggleBtn.addEventListener('click', () => (_open ? close() : open()))
   closeBtn.addEventListener('click', close)
   sendBtn.addEventListener('click', handleSend)
+  cancelBtn.addEventListener('click', () => { if (_onCancel) _onCancel() })
 
   clearBtn.addEventListener('click', () => {
     if (!_clearPending) {
@@ -380,9 +484,16 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
     open,
     close,
     addMessage,
+    addSkeletonMessage,
+    finalizeMessage,
+    removeMessage,
     clearMessages,
     clearInput,
     setLoading,
+    setCancellable,
+    clearCancellable,
+    showToast,
+    hideToast,
     isOpen: () => _open,
   }
 }
