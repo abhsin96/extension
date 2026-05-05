@@ -11,7 +11,8 @@ const isWatch = process.argv.includes('--watch')
 function loadEnv(filePath = '.env') {
   if (!fs.existsSync(filePath)) return {}
   return Object.fromEntries(
-    fs.readFileSync(filePath, 'utf8')
+    fs
+      .readFileSync(filePath, 'utf8')
       .split('\n')
       .filter((line) => line.trim() && !line.startsWith('#'))
       .map((line) => {
@@ -35,12 +36,7 @@ if (OPENAI_API_KEY) {
   console.warn('Warning: OPENAI_API_KEY not found in .env — key will be empty')
 }
 
-const entryPoints = [
-  'src/background.js',
-  'src/content_script.js',
-  'src/popup.js',
-  'src/options.js',
-]
+const entryPoints = ['src/background.js', 'src/content_script.js', 'src/popup.js', 'src/options.js']
 
 const publicFiles = ['public/manifest.json', 'public/popup.html', 'public/options.html']
 
@@ -64,6 +60,15 @@ function copyPublicFiles() {
       fs.copyFileSync(src, dest)
     }
     console.log(`Copied public/icons/ → dist/icons/`)
+  }
+  // Copy seek_bridge_injected.js to dist/src/utils/
+  const seekBridgeFile = path.join('src', 'utils', 'seek_bridge_injected.js')
+  if (fs.existsSync(seekBridgeFile)) {
+    const destDir = path.join('dist', 'src', 'utils')
+    fs.mkdirSync(destDir, { recursive: true })
+    const dest = path.join(destDir, 'seek_bridge_injected.js')
+    fs.copyFileSync(seekBridgeFile, dest)
+    console.log(`Copied ${seekBridgeFile} → ${dest}`)
   }
 }
 

@@ -4,16 +4,9 @@
   "version": "0.1.0",
   "description": "Ask questions about YouTube videos using AI",
 
-  "permissions": [
-    "activeTab",
-    "storage",
-    "scripting"
-  ],
+  "permissions": ["activeTab", "storage", "scripting"],
 
-  "host_permissions": [
-    "*://*.youtube.com/*",
-    "http://localhost:8000/*"
-  ],
+  "host_permissions": ["*://*.youtube.com/*", "http://localhost:8000/*"],
 
   "background": {
     "service_worker": "background.js",
@@ -49,5 +42,12 @@
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
-  }
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["src/utils/seek_bridge_injected.js"],
+      "matches": ["*://*.youtube.com/*"]
+    }
+  ]
 }

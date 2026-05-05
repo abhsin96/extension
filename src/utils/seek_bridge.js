@@ -13,22 +13,14 @@ export const SEEK_MSG_TYPE = 'YT_QA_SEEK'
 /**
  * Inject the seek bridge into the page (idempotent).
  * Must be called from a content script that can write to the DOM.
+ * Uses an external script file to comply with CSP.
  */
 export function injectSeekBridge() {
   if (document.getElementById(BRIDGE_ID)) return
   const script = document.createElement('script')
   script.id = BRIDGE_ID
-  // Runs in MAIN world — has access to the page's video element.
-  script.textContent = [
-    '(function(){',
-    `  var T="${SEEK_MSG_TYPE}";`,
-    '  window.addEventListener("message",function(e){',
-    '    if(e.source!==window||!e.data||e.data.type!==T)return;',
-    '    var v=document.querySelector("video");',
-    '    if(v)v.currentTime=e.data.sec;',
-    '  });',
-    '})();',
-  ].join('')
+  // Use external script instead of inline to comply with CSP
+  script.src = chrome.runtime.getURL('src/utils/seek_bridge_injected.js')
   ;(document.head || document.documentElement).appendChild(script)
   // Keep the element as a DOM sentinel so the guard above works across SPA navigations.
 }
