@@ -579,8 +579,12 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
     }
   })
 
-  // Esc on sidebar itself (when focus is on a non-textarea element)
+  // Stop ALL keyboard events from propagating to YouTube when sidebar is open
+  // This prevents YouTube shortcuts (spacebar, arrow keys, etc.) from triggering
   sidebarEl.addEventListener('keydown', (e) => {
+    // Always stop propagation to prevent YouTube shortcuts
+    e.stopPropagation()
+
     if (e.key === 'Escape') close()
   })
 
