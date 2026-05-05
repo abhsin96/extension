@@ -62,6 +62,11 @@ async function _request(path, options = {}) {
     throw new ApiError(detail, status)
   }
 
+  // Handle 204 No Content responses (e.g., /config/api-key)
+  if (response.status === 204) {
+    return {}
+  }
+
   return response.json()
 }
 
@@ -152,7 +157,6 @@ const apiClient = {
 
   /**
    * Store an OpenAI API key on the server.
-   * Stub — endpoint not yet implemented on the backend.
    *
    * @param {string} key
    * @returns {Promise<void>}
@@ -161,7 +165,7 @@ const apiClient = {
    */
   async setApiKey(key) {
     await _request('/config/api-key', {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify({ api_key: key }),
     })
   },

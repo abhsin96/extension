@@ -5,6 +5,17 @@ import path from 'path'
 const isWatch = process.argv.includes('--watch')
 
 // ---------------------------------------------------------------------------
+// Clean dist folder before build
+// ---------------------------------------------------------------------------
+
+function cleanDist() {
+  if (fs.existsSync('dist')) {
+    fs.rmSync('dist', { recursive: true, force: true })
+    console.log('Cleaned dist folder ✓')
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Load .env (if present) — no extra dependencies needed
 // ---------------------------------------------------------------------------
 
@@ -80,6 +91,11 @@ const buildOptions = {
   format: 'esm',
   bundle: true,
   define,
+}
+
+// Clean dist folder before building (except in watch mode)
+if (!isWatch) {
+  cleanDist()
 }
 
 if (isWatch) {
