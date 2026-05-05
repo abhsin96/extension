@@ -2,9 +2,11 @@
  * YouTube Q&A Chat Sidebar.
  * Creates a Shadow DOM-isolated sidebar + floating toggle button.
  *
- * @param {{ onSend?: Function, onClose?: Function, onClear?: Function }} [callbacks]
+ * @param {{ onSend?: Function, onClose?: Function, onClear?: Function, onSeek?: Function }} [callbacks]
  * @returns {{ host, open, close, addMessage, clearMessages, clearInput, setLoading, isOpen }}
  */
+
+import { parseTimestamp, formatTimestamp } from './utils/timestamp.js'
 
 const CSS = `
 :host { all: initial; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -159,6 +161,40 @@ button:disabled { opacity: .4; cursor: default; }
 /* Theater mode — sidebar remains a fixed overlay; keep open state intact */
 :host(.theater) .sidebar { top: 0; height: 100vh; }
 
+/* ---- Timestamp links ---- */
+.ts-link {
+  color: #065fd4; text-decoration: none; cursor: pointer;
+  border-radius: 2px; padding: 0 1px;
+}
+.ts-link:hover { text-decoration: underline; }
+.ts-link:active { color: #003f8a; }
+@media (prefers-color-scheme: dark) {
+  .ts-link { color: #3ea6ff; }
+  .ts-link:active { color: #7bbfff; }
+}
+
+/* ---- Citation block ---- */
+.citations { margin-top: 8px; font-size: 12px; }
+.citations summary {
+  cursor: pointer; user-select: none; color: #065fd4;
+  font-size: 12px; list-style: none; padding: 2px 0;
+}
+.citations summary:hover { text-decoration: underline; }
+.citation-list {
+  margin: 6px 0 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.citation-item {
+  background: #f8f8f8; border-left: 2px solid #e0e0e0;
+  padding: 6px 8px; border-radius: 0 6px 6px 0;
+}
+.citation-text { color: #606060; font-size: 12px; line-height: 1.4; }
+@media (prefers-color-scheme: dark) {
+  .citations summary { color: #3ea6ff; }
+  .citation-item { background: #252525; border-left-color: #4f4f4f; }
+  .citation-text { color: #aaa; }
+}
+
 /* ---- Skeleton shimmer placeholder ---- */
 .message--skeleton .message-bubble {
   background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
@@ -229,7 +265,7 @@ function buildTemplate() {
 let _idCounter = 0
 export function msgId() { return `msg-${++_idCounter}` }
 
-export function createSidebar({ onSend, onClose, onClear } = {}) {
+export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
   const host = document.createElement('div')
   host.id = 'yt-qa-root'
 
@@ -334,8 +370,69 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
     toastEl.innerHTML = ''
   }
 
-  // -- Messages --
-  function addMessage({ id, role, text, refused = false }) {
+  // -- Messages —
+
+  // Regex that identifies bracketed timestamps: [mm:ss] or [hh:mm:ss] in message text.
+  const TS_RE = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g
+
+  function _makeSeekLink(raw, sec) {
+    const a = document.createElement('a')
+    a.className = 'ts-link'
+    a.dataset.sec = sec
+    a.textContent = raw
+    a.setAttribute('role', 'button')
+    a.setAttribute('tabindex', '0')
+    const handler = () => onSeek?.(sec)
+    a.addEventListener('click', handler)
+    a.addEventListener('keydown', (e) => { if (e.key === 'Enter') handler() })
+    return a
+  }
+
+  function _renderText(container, text) {
+    TS_RE.lastIndex = 0
+    let last = 0
+    let m
+    while ((m = TS_RE.exec(text)) !== null) {
+      if (m.index > last) container.appendChild(document.createTextNode(text.slice(last, m.index)))
+      const sec = parseTimestamp(m[1])
+      container.appendChild(sec !== null ? _makeSeekLink(m[0], sec) : document.createTextNode(m[0]))
+      last = m.index + m[0].length
+    }
+    if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)))
+  }
+
+  function _buildCitationBlock(citations) {
+    if (!citations || citations.length === 0) return null
+    const details = document.createElement('details')
+    details.className = 'citations'
+    const summary = document.createElement('summary')
+    summary.textContent = `${citations.length} source${citations.length !== 1 ? 's' : ''}`
+    details.appendChild(summary)
+    const list = document.createElement('ul')
+    list.className = 'citation-list'
+    for (const c of citations) {
+      const li = document.createElement('li')
+      li.className = 'citation-item'
+      const sec = typeof c.start_ts === 'number' ? c.start_ts : parseTimestamp(String(c.start_ts ?? ''))
+      if (sec !== null) {
+        li.appendChild(_makeSeekLink(`[${formatTimestamp(sec)}]`, sec))
+        li.appendChild(document.createTextNode(' '))
+      }
+      const span = document.createElement('span')
+      span.className = 'citation-text'
+      span.textContent = c.text ?? ''
+      li.appendChild(span)
+      list.appendChild(li)
+    }
+    details.appendChild(list)
+    return details
+  }
+
+  function _isRichRole(role, refused) {
+    return role === 'assistant' || refused
+  }
+
+  function addMessage({ id, role, text, refused = false, citations = [] }) {
     const msgDiv = document.createElement('div')
     const effectiveRole = refused ? 'refusal' : role
     msgDiv.className = `message message--${effectiveRole}`
@@ -344,8 +441,17 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
 
     const bubble = document.createElement('div')
     bubble.className = 'message-bubble'
-    bubble.textContent = text
+    if (_isRichRole(role, refused)) {
+      _renderText(bubble, text)
+    } else {
+      bubble.textContent = text
+    }
     msgDiv.appendChild(bubble)
+
+    if (_isRichRole(role, refused)) {
+      const cit = _buildCitationBlock(citations)
+      if (cit) msgDiv.appendChild(cit)
+    }
 
     messageList.appendChild(msgDiv)
     messageList.scrollTop = messageList.scrollHeight
@@ -365,13 +471,24 @@ export function createSidebar({ onSend, onClose, onClear } = {}) {
     return msgDiv
   }
 
-  function finalizeMessage(id, { role, text, refused = false }) {
+  function finalizeMessage(id, { role, text, refused = false, citations = [] }) {
     const el = messageList.querySelector(`[data-id="${id}"]`)
-    if (!el) return addMessage({ id, role, text, refused })
+    if (!el) return addMessage({ id, role, text, refused, citations })
     const effectiveRole = refused ? 'refusal' : role
     el.className = `message message--${effectiveRole}`
     el.dataset.role = role
-    el.querySelector('.message-bubble').textContent = text
+    const bubble = el.querySelector('.message-bubble')
+    bubble.innerHTML = ''
+    if (_isRichRole(role, refused)) {
+      _renderText(bubble, text)
+    } else {
+      bubble.textContent = text
+    }
+    el.querySelector('.citations')?.remove()
+    if (_isRichRole(role, refused)) {
+      const cit = _buildCitationBlock(citations)
+      if (cit) el.appendChild(cit)
+    }
     return el
   }
 

@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSidebar, msgId } from '../src/sidebar.js'
 
+// Silence window.postMessage from seek_bridge.js in tests
+vi.spyOn(window, 'postMessage').mockImplementation(() => {})
+
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
@@ -350,5 +353,124 @@ describe('theater mode', () => {
     await Promise.resolve()
     expect(host.classList.contains('theater')).toBe(false)
     flexy.remove()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Timestamp links in assistant messages
+// ---------------------------------------------------------------------------
+
+describe('timestamp links', () => {
+  let onSeek
+
+  beforeEach(() => {
+    host.remove()
+    onSeek = vi.fn()
+    api = createSidebar({ onSend: vi.fn(), onClose: vi.fn(), onClear: vi.fn(), onSeek })
+    host = api.host
+    shadow = host.shadowRoot
+    document.body.appendChild(host)
+  })
+
+  it('renders [mm:ss] as a .ts-link anchor in assistant messages', () => {
+    api.addMessage({ id: '1', role: 'assistant', text: 'See [01:23] for details.' })
+    const link = q('.ts-link')
+    expect(link).toBeTruthy()
+    expect(link.textContent).toBe('[01:23]')
+    expect(link.dataset.sec).toBe('83')
+  })
+
+  it('renders [hh:mm:ss] as a .ts-link anchor', () => {
+    api.addMessage({ id: '2', role: 'assistant', text: 'Starts at [01:23:45].' })
+    expect(q('.ts-link').dataset.sec).toBe('5025')
+  })
+
+  it('clicking .ts-link calls onSeek with the correct seconds', () => {
+    api.addMessage({ id: '3', role: 'assistant', text: 'Check [01:23].' })
+    q('.ts-link').click()
+    expect(onSeek).toHaveBeenCalledWith(83)
+  })
+
+  it('malformed bracketed text is rendered as plain text, not a link', () => {
+    api.addMessage({ id: '4', role: 'assistant', text: 'See [abc] for info.' })
+    expect(q('.ts-link')).toBeFalsy()
+    expect(q('.message-bubble').textContent).toContain('[abc]')
+  })
+
+  it('does NOT render timestamps as links in user messages', () => {
+    api.addMessage({ id: '5', role: 'user', text: 'What about [01:23]?' })
+    expect(q('.ts-link')).toBeFalsy()
+  })
+
+  it('renders multiple timestamps in the same message', () => {
+    api.addMessage({ id: '6', role: 'assistant', text: '[00:10] intro and [01:23] main part.' })
+    const links = qAll('.ts-link')
+    expect(links).toHaveLength(2)
+    expect(links[0].dataset.sec).toBe('10')
+    expect(links[1].dataset.sec).toBe('83')
+  })
+
+  it('finalizeMessage renders timestamps when replacing a skeleton', () => {
+    api.addSkeletonMessage('sk1')
+    api.finalizeMessage('sk1', { role: 'assistant', text: 'See [02:00].' })
+    expect(q('.ts-link')).toBeTruthy()
+    expect(q('.ts-link').dataset.sec).toBe('120')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Citation block
+// ---------------------------------------------------------------------------
+
+describe('citation block', () => {
+  const CITATIONS = [
+    { chunk_id: 'c1', start_ts: 83, end_ts: 143, text: 'First excerpt text.' },
+    { chunk_id: 'c2', start_ts: 200, end_ts: 260, text: 'Second excerpt text.' },
+  ]
+
+  it('renders a <details> citation block for assistant messages with citations', () => {
+    api.addMessage({ id: '1', role: 'assistant', text: 'Answer.', citations: CITATIONS })
+    expect(q('.citations')).toBeTruthy()
+  })
+
+  it('shows the correct source count in the summary', () => {
+    api.addMessage({ id: '2', role: 'assistant', text: 'Answer.', citations: CITATIONS })
+    expect(q('.citations summary').textContent).toBe('2 sources')
+  })
+
+  it('renders one list item per citation', () => {
+    api.addMessage({ id: '3', role: 'assistant', text: 'Answer.', citations: CITATIONS })
+    expect(qAll('.citation-item')).toHaveLength(2)
+  })
+
+  it('renders citation timestamp as a clickable ts-link', () => {
+    let onSeek
+    host.remove()
+    onSeek = vi.fn()
+    const s = createSidebar({ onSend: vi.fn(), onSeek })
+    document.body.appendChild(s.host)
+    s.addMessage({ id: '4', role: 'assistant', text: 'Answer.', citations: [CITATIONS[0]] })
+    const tsLinks = [...s.host.shadowRoot.querySelectorAll('.citation-item .ts-link')]
+    expect(tsLinks).toHaveLength(1)
+    expect(tsLinks[0].dataset.sec).toBe('83')
+    tsLinks[0].click()
+    expect(onSeek).toHaveBeenCalledWith(83)
+    s.host.remove()
+  })
+
+  it('does not render citation block when citations array is empty', () => {
+    api.addMessage({ id: '5', role: 'assistant', text: 'Answer.', citations: [] })
+    expect(q('.citations')).toBeFalsy()
+  })
+
+  it('shows "1 source" (singular) for one citation', () => {
+    api.addMessage({ id: '6', role: 'assistant', text: 'A.', citations: [CITATIONS[0]] })
+    expect(q('.citations summary').textContent).toBe('1 source')
+  })
+
+  it('finalizeMessage replaces citations correctly', () => {
+    api.addSkeletonMessage('sk1')
+    api.finalizeMessage('sk1', { role: 'assistant', text: 'Answer.', citations: CITATIONS })
+    expect(qAll('.citation-item')).toHaveLength(2)
   })
 })

@@ -143,6 +143,7 @@ export function createQaSession({ sidebar, sendMessage }) {
         role: 'assistant',
         text: res.data.answer,
         refused: res.data.refused,
+        citations: res.data.citations ?? [],
       })
     } else {
       sidebar.finalizeMessage(skeletonId, { role: 'error', text: res.error.message })

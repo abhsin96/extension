@@ -6,6 +6,7 @@
 import { extractVideoId } from './utils/videoId.js'
 import { createSidebar } from './sidebar.js'
 import { createQaSession } from './wiring.js'
+import { injectSeekBridge, seekVideo } from './utils/seek_bridge.js'
 
 const SENTINEL = '[YouTube Q&A] content script active'
 const DEBOUNCE_MS = 200
@@ -38,9 +39,11 @@ function resolveAbsolute(url) {
 let currentVideoId = null
 
 document.getElementById('yt-qa-root')?.remove()
+injectSeekBridge()
 
 const sidebar = createSidebar({
   onSend: (question) => session.handleSend(question, currentVideoId),
+  onSeek: seekVideo,
 })
 
 const session = createQaSession({
