@@ -263,7 +263,9 @@ function buildTemplate() {
 }
 
 let _idCounter = 0
-export function msgId() { return `msg-${++_idCounter}` }
+export function msgId() {
+  return `msg-${++_idCounter}`
+}
 
 export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
   const host = document.createElement('div')
@@ -283,7 +285,7 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
   const $ = (sel) => shadow.querySelector(sel)
 
   const toggleBtn = $('.toggle-btn')
-  const sidebarEl = $('.sidebar')  // avoid conflict with outer var name
+  const sidebarEl = $('.sidebar') // avoid conflict with outer var name
   const closeBtn = $('.close-btn')
   const messageList = $('.message-list')
   const textarea = $('.input')
@@ -384,7 +386,9 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
     a.setAttribute('tabindex', '0')
     const handler = () => onSeek?.(sec)
     a.addEventListener('click', handler)
-    a.addEventListener('keydown', (e) => { if (e.key === 'Enter') handler() })
+    a.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handler()
+    })
     return a
   }
 
@@ -413,7 +417,8 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
     for (const c of citations) {
       const li = document.createElement('li')
       li.className = 'citation-item'
-      const sec = typeof c.start_ts === 'number' ? c.start_ts : parseTimestamp(String(c.start_ts ?? ''))
+      const sec =
+        typeof c.start_ts === 'number' ? c.start_ts : parseTimestamp(String(c.start_ts ?? ''))
       if (sec !== null) {
         li.appendChild(_makeSeekLink(`[${formatTimestamp(sec)}]`, sec))
         li.appendChild(document.createTextNode(' '))
@@ -530,7 +535,9 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
   toggleBtn.addEventListener('click', () => (_open ? close() : open()))
   closeBtn.addEventListener('click', close)
   sendBtn.addEventListener('click', handleSend)
-  cancelBtn.addEventListener('click', () => { if (_onCancel) _onCancel() })
+  cancelBtn.addEventListener('click', () => {
+    if (_onCancel) _onCancel()
+  })
 
   clearBtn.addEventListener('click', () => {
     if (!_clearPending) {
@@ -548,16 +555,28 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
     clearMessages()
   })
 
-  textarea.addEventListener('input', () => { autoGrow(); updateSendBtn() })
+  textarea.addEventListener('input', () => {
+    autoGrow()
+    updateSendBtn()
+  })
 
   textarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+    // Stop all keyboard events from bubbling to YouTube's page
+    e.stopPropagation()
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
     if (e.key === 'Escape') close()
   })
 
   // Cmd/Ctrl+L clears input from anywhere inside the wrapper div
   wrapper.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'l') { e.preventDefault(); clearInput() }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+      e.preventDefault()
+      clearInput()
+    }
   })
 
   // Esc on sidebar itself (when focus is on a non-textarea element)
