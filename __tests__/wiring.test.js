@@ -18,6 +18,8 @@ function makeSidebar() {
     hideToast: vi.fn(),
     clearMessages: vi.fn(),
     clearInput: vi.fn(),
+    showEmptyState: vi.fn(),
+    clearEmptyState: vi.fn(),
   }
 }
 
@@ -388,5 +390,133 @@ describe('handleClear', () => {
     const localSession = createQaSession({ sidebar: makeSidebar(), sendMessage: vi.fn(), storage })
     await localSession.handleClear(null)
     expect(storage.clearHistory).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Error routing: ingest errors → empty state or error message
+// ---------------------------------------------------------------------------
+
+describe('error routing during ingest', () => {
+  it('shows no-captions empty state for TRANSCRIPT_DISABLED', async () => {
+    sendMessage.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'TRANSCRIPT_DISABLED', message: 'No transcript.' },
+    })
+    await session.handleSend(QUESTION, VIDEO_ID)
+    expect(sidebar.showEmptyState).toHaveBeenCalledWith('no-captions')
+    expect(sidebar.addMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'error' }),
+    )
+  })
+
+  it('shows backend-down empty state for BACKEND_UNREACHABLE during ingest', async () => {
+    sendMessage.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'BACKEND_UNREACHABLE', message: 'Down.' },
+    })
+    await session.handleSend(QUESTION, VIDEO_ID)
+    expect(sidebar.showEmptyState).toHaveBeenCalledWith('backend-down')
+  })
+
+  it('still shows retry toast for BACKEND_UNREACHABLE during ingest', async () => {
+    sendMessage.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'BACKEND_UNREACHABLE', message: 'Down.' },
+    })
+    await session.handleSend(QUESTION, VIDEO_ID)
+    expect(sidebar.showToast).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'Retry' }),
+    )
+  })
+
+  it('shows key-missing empty state for API_KEY_MISSING during ingest', async () => {
+    sendMessage.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'API_KEY_MISSING', message: 'No key.' },
+    })
+    await session.handleSend(QUESTION, VIDEO_ID)
+    expect(sidebar.showEmptyState).toHaveBeenCalledWith('key-missing')
+  })
+
+  it('shows error message (not empty state) for RATE_LIMITED', async () => {
+    sendMessage.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'RATE_LIMITED', message: 'Rate limited.' },
+    })
+    await session.handleSend(QUESTION, VIDEO_ID)
+    expect(sidebar.showEmptyState).not.toHaveBeenCalled()
+    expect(sidebar.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'error' }),
+    )
+  })
+})
+
+describe('error routing during ask', () => {
+  it('uses friendly copy from error map for ask errors', async () => {
+    sendMessage.mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'RATE_LIMITED', message: 'Rate limited.' },
+    })
+    await session.handleSend(QUESTION, VIDEO_ID)
+    const call = sidebar.finalizeMessage.mock.calls.at(-1)
+    expect(call[1].role).toBe('error')
+    expect(call[1].text).toContain("rate limit")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// State machine integration
+// ---------------------------------------------------------------------------
+
+describe('state machine', () => {
+  it('starts in idle state', () => {
+    const localSession = createQaSession({ sidebar: makeSidebar(), sendMessage: vi.fn() })
+    expect(localSession.getState()).toBe('idle')
+  })
+
+  it('transitions to ingesting during ingest phase', async () => {
+    let stateAtIngest
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi.fn().mockImplementation(async (msg) => {
+      if (msg.type === 'INGEST_VIDEO') {
+        stateAtIngest = localSession.getState()
+        return INGEST_OK
+      }
+      return ASK_OK
+    })
+    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage })
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+    expect(stateAtIngest).toBe('ingesting')
+  })
+
+  it('returns to idle after successful ask', async () => {
+    sendMessage.mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce(ASK_OK)
+    await session.handleSend(QUESTION, VIDEO_ID)
+    expect(session.getState()).toBe('idle')
+  })
+
+  it('transitions to error state on failed ask', async () => {
+    sendMessage.mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'RATE_LIMITED', message: 'Rate limited.' },
+    })
+    await session.handleSend(QUESTION, VIDEO_ID)
+    expect(session.getState()).toBe('error')
+  })
+
+  it('can recover from error state on next send', async () => {
+    // First ask fails
+    sendMessage.mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'RATE_LIMITED', message: 'Rate limited.' },
+    })
+    await session.handleSend(QUESTION, VIDEO_ID)
+    expect(session.getState()).toBe('error')
+
+    // Second ask succeeds (ingest already cached)
+    sendMessage.mockResolvedValueOnce(ASK_OK)
+    await session.handleSend('Follow-up?', VIDEO_ID)
+    expect(session.getState()).toBe('idle')
   })
 })

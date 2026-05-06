@@ -3,22 +3,21 @@
  * Extracted from content_script.js so it can be unit-tested independently.
  *
  * @param {{ sidebar: object, sendMessage: Function, storage?: object }} deps
- * @returns {{ handleSend: Function, loadHistory: Function, handleClear: Function }}
+ * @returns {{ handleSend: Function, loadHistory: Function, handleClear: Function, getState: Function }}
  */
 
 import { msgId } from './sidebar.js'
+import { getErrorCopy } from './errors/messages.js'
+import { createStateMachine, STATES } from './uiState.js'
 
 const HEALTH_POLL_MS = 5_000
 
 export function createQaSession({ sidebar, sendMessage, storage = null }) {
-  // Video IDs we've successfully auto-ingested this browser session.
   const _ingestedIds = new Set()
-
-  // Cancellation token for the currently in-flight ask (null when idle).
   let _currentRef = null
-
-  // Health-poll interval ID (null when not polling).
   let _healthTimer = null
+
+  const sm = createStateMachine()
 
   function _stopHealthPoll() {
     if (_healthTimer !== null) {
@@ -46,6 +45,7 @@ export function createQaSession({ sidebar, sendMessage, storage = null }) {
     sidebar.showToast({
       text: 'Cannot reach the backend — is the server running?',
       action: 'Retry',
+      severity: 'error',
       onAction: () => {
         sidebar.hideToast()
         _stopHealthPoll()
@@ -55,16 +55,35 @@ export function createQaSession({ sidebar, sendMessage, storage = null }) {
     _startHealthPoll()
   }
 
+  function _handleError(code, message, { inIngest = false, skeletonId = null, question, videoId } = {}) {
+    sm.transition(STATES.ERROR, { code })
+    sidebar.setLoading(false)
+    sidebar.clearCancellable()
+    _currentRef = null
+
+    const copy = getErrorCopy(code)
+    const text = copy.message + (copy.action ? ` ${copy.action}` : '')
+
+    if (inIngest && copy.emptyState) {
+      // Pre-conversation error: show as empty state card
+      sidebar.showEmptyState(copy.emptyState)
+    } else if (skeletonId) {
+      sidebar.finalizeMessage(skeletonId, { role: 'error', text })
+    } else {
+      sidebar.addMessage({ id: msgId(), role: 'error', text })
+    }
+
+    if (code === 'BACKEND_UNREACHABLE') {
+      _showBackendToast(question, videoId)
+    }
+  }
+
   async function loadHistory(videoId) {
     if (!storage || !videoId) return
     const turns = await storage.getHistory(videoId)
     if (turns.length === 0) return
     for (const turn of turns) {
-      sidebar.addMessage({
-        id: msgId(),
-        role: turn.role,
-        text: turn.content,
-      })
+      sidebar.addMessage({ id: msgId(), role: turn.role, text: turn.content })
     }
   }
 
@@ -91,10 +110,12 @@ export function createQaSession({ sidebar, sendMessage, storage = null }) {
 
     // ── Phase 1: auto-ingest on first question for this video ──────────────
     if (!_ingestedIds.has(videoId)) {
+      sm.transition(STATES.INGESTING)
       sidebar.setLoading(true, { text: 'Preparing transcript\u2026' })
       sidebar.setCancellable(() => {
         ref.cancelled = true
         _currentRef = null
+        sm.transition(STATES.IDLE)
         sidebar.setLoading(false)
         sidebar.clearCancellable()
       })
@@ -104,42 +125,42 @@ export function createQaSession({ sidebar, sendMessage, storage = null }) {
         ingestRes = await sendMessage({ type: 'INGEST_VIDEO', videoId })
       } catch (err) {
         if (ref.cancelled) return
-        sidebar.setLoading(false)
-        sidebar.clearCancellable()
-        _currentRef = null
-        sidebar.addMessage({ id: msgId(), role: 'error', text: err?.message ?? 'Connection error.' })
+        _handleError('BACKEND_UNREACHABLE', err?.message, { inIngest: true, question, videoId })
         return
       }
 
       if (ref.cancelled) return
-      sidebar.setLoading(false)
 
       if (!ingestRes.ok) {
-        sidebar.clearCancellable()
-        _currentRef = null
-        sidebar.addMessage({ id: msgId(), role: 'error', text: ingestRes.error.message })
-        if (ingestRes.error.code === 'BACKEND_UNREACHABLE') _showBackendToast(question, videoId)
+        _handleError(ingestRes.error.code, ingestRes.error.message, {
+          inIngest: true,
+          question,
+          videoId,
+        })
         return
       }
 
+      sm.transition(STATES.ASKING)
+      sidebar.setLoading(false)
       _ingestedIds.add(videoId)
     }
 
     if (ref.cancelled) return
 
     // ── Phase 2: ask ──────────────────────────────────────────────────────
+    sm.transition(STATES.ASKING)
     const skeletonId = msgId()
     sidebar.addSkeletonMessage(skeletonId)
     sidebar.setLoading(true)
     sidebar.setCancellable(() => {
       ref.cancelled = true
       _currentRef = null
+      sm.transition(STATES.IDLE)
       sidebar.removeMessage(skeletonId)
       sidebar.setLoading(false)
       sidebar.clearCancellable()
     })
 
-    // Build history: all turns stored so far (excluding the question just added to sidebar).
     const history = storage ? await storage.getHistory(videoId) : []
 
     let res
@@ -147,15 +168,13 @@ export function createQaSession({ sidebar, sendMessage, storage = null }) {
       res = await sendMessage({ type: 'ASK_QUESTION', videoId, question, history })
     } catch (err) {
       if (ref.cancelled) return
-      sidebar.finalizeMessage(skeletonId, { role: 'error', text: err?.message ?? 'Connection error.' })
-      sidebar.setLoading(false)
-      sidebar.clearCancellable()
-      _currentRef = null
+      _handleError('BACKEND_UNREACHABLE', err?.message, { skeletonId, question, videoId })
       return
     }
 
     if (ref.cancelled) return
 
+    sm.transition(STATES.IDLE)
     sidebar.setLoading(false)
     sidebar.clearCancellable()
     _currentRef = null
@@ -168,16 +187,19 @@ export function createQaSession({ sidebar, sendMessage, storage = null }) {
         refused: res.data.refused,
         citations: res.data.citations ?? [],
       })
-      // Persist both turns after a successful response.
       if (storage) {
         await storage.appendTurn(videoId, { role: 'user', content: question })
         await storage.appendTurn(videoId, { role: 'assistant', content: answer })
       }
     } else {
-      sidebar.finalizeMessage(skeletonId, { role: 'error', text: res.error.message })
-      if (res.error.code === 'BACKEND_UNREACHABLE') _showBackendToast(question, videoId)
+      _handleError(res.error.code, res.error.message, { skeletonId, question, videoId })
     }
   }
 
-  return { handleSend, loadHistory, handleClear }
+  return {
+    handleSend,
+    loadHistory,
+    handleClear,
+    getState: () => sm.getState(),
+  }
 }

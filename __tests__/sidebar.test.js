@@ -474,3 +474,124 @@ describe('citation block', () => {
     expect(qAll('.citation-item')).toHaveLength(2)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Toast severity
+// ---------------------------------------------------------------------------
+
+describe('toast severity', () => {
+  it('defaults to error severity class', () => {
+    api.showToast({ text: 'Oops.' })
+    expect(q('.toast').className).toContain('toast--error')
+  })
+
+  it('applies warn severity class', () => {
+    api.showToast({ text: 'Watch out.', severity: 'warn' })
+    expect(q('.toast').className).toContain('toast--warn')
+  })
+
+  it('applies info severity class', () => {
+    api.showToast({ text: 'FYI.', severity: 'info' })
+    expect(q('.toast').className).toContain('toast--info')
+  })
+
+  it('auto-dismisses info toast after autoDismissMs', async () => {
+    vi.useFakeTimers()
+    api.showToast({ text: 'Info.', severity: 'info', autoDismissMs: 100 })
+    expect(q('.toast').hidden).toBe(false)
+    await vi.runAllTimersAsync()
+    expect(q('.toast').hidden).toBe(true)
+    vi.useRealTimers()
+  })
+
+  it('auto-dismisses warn toast after autoDismissMs', async () => {
+    vi.useFakeTimers()
+    api.showToast({ text: 'Warn.', severity: 'warn', autoDismissMs: 100 })
+    await vi.runAllTimersAsync()
+    expect(q('.toast').hidden).toBe(true)
+    vi.useRealTimers()
+  })
+
+  it('does NOT auto-dismiss error toast', async () => {
+    vi.useFakeTimers()
+    api.showToast({ text: 'Error.', severity: 'error' })
+    await vi.runAllTimersAsync()
+    expect(q('.toast').hidden).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it('replaces previous toast when shown again', () => {
+    api.showToast({ text: 'First', severity: 'info' })
+    api.showToast({ text: 'Second', severity: 'error' })
+    expect(q('.toast').textContent).toContain('Second')
+    expect(q('.toast').className).toContain('toast--error')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Empty states
+// ---------------------------------------------------------------------------
+
+describe('empty states', () => {
+  it('showEmptyState renders a card in the message list', () => {
+    api.showEmptyState('no-captions')
+    expect(q('.empty-state')).toBeTruthy()
+    expect(q('.message-list').contains(q('.empty-state'))).toBe(true)
+  })
+
+  it('no-captions card contains the right heading', () => {
+    api.showEmptyState('no-captions')
+    expect(q('.empty-state-heading').textContent).toMatch(/caption/i)
+  })
+
+  it('backend-down card contains the right heading', () => {
+    api.showEmptyState('backend-down')
+    expect(q('.empty-state-heading').textContent).toMatch(/backend/i)
+  })
+
+  it('key-missing card contains the right heading', () => {
+    api.showEmptyState('key-missing')
+    expect(q('.empty-state-heading').textContent).toMatch(/api key/i)
+  })
+
+  it('key-missing card renders a Configure action button', () => {
+    api.showEmptyState('key-missing')
+    expect(q('.empty-state-action')).toBeTruthy()
+  })
+
+  it('key-missing action button calls onOpenOptions', () => {
+    const onOpenOptions = vi.fn()
+    const localApi = createSidebar({ onOpenOptions })
+    const localShadow = localApi.host.shadowRoot
+    document.body.appendChild(localApi.host)
+    localApi.showEmptyState('key-missing')
+    localShadow.querySelector('.empty-state-action').click()
+    expect(onOpenOptions).toHaveBeenCalled()
+    localApi.host.remove()
+  })
+
+  it('clearEmptyState removes the empty state element', () => {
+    api.showEmptyState('no-captions')
+    expect(q('.empty-state')).toBeTruthy()
+    api.clearEmptyState()
+    expect(q('.empty-state')).toBeFalsy()
+  })
+
+  it('showEmptyState replaces a previous empty state', () => {
+    api.showEmptyState('no-captions')
+    api.showEmptyState('backend-down')
+    expect(qAll('.empty-state')).toHaveLength(1)
+    expect(q('.empty-state-heading').textContent).toMatch(/backend/i)
+  })
+
+  it('addMessage clears the empty state', () => {
+    api.showEmptyState('backend-down')
+    api.addMessage({ id: 'm1', role: 'user', text: 'Hello' })
+    expect(q('.empty-state')).toBeFalsy()
+  })
+
+  it('unknown type does not render anything', () => {
+    api.showEmptyState('does-not-exist')
+    expect(q('.empty-state')).toBeFalsy()
+  })
+})

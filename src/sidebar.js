@@ -236,12 +236,18 @@ button:disabled { opacity: .4; cursor: default; }
 
 /* ---- Toast banner ---- */
 .toast {
-  padding: 10px 16px; background: #fff3cd; color: #664d03;
-  border-bottom: 1px solid #ffda6a; font-size: 13px;
+  padding: 10px 16px; font-size: 13px;
   display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  /* default: warn — yellow */
+  background: #fff3cd; color: #664d03; border-bottom: 1px solid #ffda6a;
 }
+.toast--warn { background: #fff3cd; color: #664d03; border-bottom-color: #ffda6a; }
+.toast--error { background: #fef2f2; color: #dc2626; border-bottom-color: #fca5a5; }
+.toast--info  { background: #eff6ff; color: #1d4ed8; border-bottom-color: #93c5fd; }
 @media (prefers-color-scheme: dark) {
-  .toast { background: #2a1f00; color: #ffd966; border-bottom-color: #664d03; }
+  .toast, .toast--warn { background: #2a1f00; color: #ffd966; border-bottom-color: #664d03; }
+  .toast--error { background: #2a1010; color: #f87171; border-bottom-color: #7f1d1d; }
+  .toast--info  { background: #0d1a33; color: #93c5fd; border-bottom-color: #1e3a5f; }
 }
 .toast-action {
   margin-left: auto; padding: 3px 10px; background: transparent;
@@ -249,6 +255,25 @@ button:disabled { opacity: .4; cursor: default; }
   font-size: 12px; color: inherit; flex-shrink: 0; font-family: inherit;
 }
 .toast-action:hover { background: rgba(0,0,0,.08); }
+
+/* ---- Empty state cards ---- */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: 40px 24px 24px; gap: 8px;
+}
+.empty-state-icon { font-size: 36px; line-height: 1; }
+.empty-state-heading { font-weight: 600; font-size: 14px; color: #0f0f0f; margin: 0; }
+.empty-state-body { font-size: 13px; color: #606060; line-height: 1.5; margin: 0; max-width: 240px; }
+.empty-state-action {
+  margin-top: 6px; padding: 6px 16px;
+  background: #cc0000; color: #fff; border-radius: 6px;
+  font-size: 13px; cursor: pointer; border: none; font-family: inherit;
+}
+.empty-state-action:hover { background: #aa0000; }
+@media (prefers-color-scheme: dark) {
+  .empty-state-heading { color: #e8e8e8; }
+  .empty-state-body { color: #aaa; }
+}
 `
 
 function buildTemplate() {
@@ -317,6 +342,7 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   const keyBannerLink = $('.key-banner-link')
 
   let _open = false
+  let _toastTimer = null
   let _loading = false
   let _keyRequired = false
   let loadingEl = null
@@ -375,8 +401,10 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   }
 
   // -- Toast banner --
-  function showToast({ text, action, onAction } = {}) {
+  function showToast({ text, action, onAction, severity = 'error', autoDismissMs } = {}) {
+    clearTimeout(_toastTimer)
     toastEl.innerHTML = ''
+    toastEl.className = `toast toast--${severity}`
     const msg = document.createElement('span')
     msg.textContent = text ?? ''
     toastEl.appendChild(msg)
@@ -388,11 +416,79 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
       toastEl.appendChild(btn)
     }
     toastEl.hidden = false
+    const dismiss = autoDismissMs ?? (severity === 'info' ? 3000 : severity === 'warn' ? 5000 : 0)
+    if (dismiss > 0) {
+      _toastTimer = setTimeout(hideToast, dismiss)
+    }
   }
 
   function hideToast() {
+    clearTimeout(_toastTimer)
     toastEl.hidden = true
     toastEl.innerHTML = ''
+  }
+
+  // -- Empty state cards (shown in message list when no conversation) --
+  const EMPTY_STATE_CONTENT = {
+    'no-captions': {
+      icon: '🚫',
+      heading: 'No captions available',
+      body: 'This video has no captions. Try a video with auto-generated captions enabled.',
+    },
+    'backend-down': {
+      icon: '🔌',
+      heading: 'Backend is not running',
+      body: 'Start your local backend to use YouTube Q&A.',
+      action: 'cd backend && make run',
+    },
+    'key-missing': {
+      icon: '🔑',
+      heading: 'API key required',
+      body: 'Configure your OpenAI API key in the extension options.',
+      actionLabel: 'Configure →',
+      onAction: () => onOpenOptions?.(),
+    },
+  }
+
+  function showEmptyState(type) {
+    clearEmptyState()
+    const spec = EMPTY_STATE_CONTENT[type]
+    if (!spec) return
+    const div = document.createElement('div')
+    div.className = `empty-state empty-state--${type}`
+    div.setAttribute('role', 'status')
+    if (spec.icon) {
+      const icon = document.createElement('div')
+      icon.className = 'empty-state-icon'
+      icon.textContent = spec.icon
+      div.appendChild(icon)
+    }
+    const heading = document.createElement('p')
+    heading.className = 'empty-state-heading'
+    heading.textContent = spec.heading
+    div.appendChild(heading)
+    const body = document.createElement('p')
+    body.className = 'empty-state-body'
+    body.textContent = spec.body
+    div.appendChild(body)
+    if (spec.action) {
+      const code = document.createElement('code')
+      code.style.cssText = 'display:block;margin-top:6px;font-size:12px;color:#606060;'
+      code.textContent = spec.action
+      div.appendChild(code)
+    }
+    if (spec.actionLabel) {
+      const btn = document.createElement('button')
+      btn.className = 'empty-state-action'
+      btn.textContent = spec.actionLabel
+      btn.addEventListener('click', spec.onAction)
+      div.appendChild(btn)
+    }
+    messageList.appendChild(div)
+  }
+
+  function clearEmptyState() {
+    messageList.querySelector('.empty-state')?.remove()
   }
 
   // -- Messages —
@@ -461,6 +557,7 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   }
 
   function addMessage({ id, role, text, refused = false, citations = [] }) {
+    clearEmptyState()
     const msgDiv = document.createElement('div')
     const effectiveRole = refused ? 'refusal' : role
     msgDiv.className = `message message--${effectiveRole}`
@@ -677,6 +774,8 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
     clearCancellable,
     showToast,
     hideToast,
+    showEmptyState,
+    clearEmptyState,
     setApiKeyRequired,
     showToggleButton,
     hideToggleButton,

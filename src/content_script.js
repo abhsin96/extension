@@ -125,10 +125,18 @@ function broadcast(videoId, url) {
   chrome.runtime.sendMessage({ type: 'VIDEO_CHANGED', videoId, url })
     .then((res) => {
       if (res?.ok && res.data?.health) {
-        sidebar.setApiKeyRequired(!res.data.health.has_api_key)
+        const hasKey = res.data.health.has_api_key
+        sidebar.setApiKeyRequired(!hasKey)
+        if (!hasKey) {
+          sidebar.showEmptyState('key-missing')
+        } else {
+          sidebar.clearEmptyState()
+        }
       }
     })
-    .catch(() => {}) // backend unreachable — toast in wiring.js handles this
+    .catch(() => {
+      sidebar.showEmptyState('backend-down')
+    })
 }
 
 const debouncedBroadcast = debounce(broadcast, DEBOUNCE_MS)
