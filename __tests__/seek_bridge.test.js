@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.stubGlobal('chrome', {
+  runtime: { getURL: (path) => `chrome-extension://fake-id/${path}` },
+})
+
 import { injectSeekBridge, seekVideo, SEEK_MSG_TYPE } from '../src/utils/seek_bridge.js'
 
 // ---------------------------------------------------------------------------
@@ -55,9 +60,9 @@ describe('injectSeekBridge', () => {
     expect(document.querySelectorAll(`#${BRIDGE_ID}`)).toHaveLength(1)
   })
 
-  it('injected script contains the seek message type', () => {
+  it('injected script src points to the bridge file', () => {
     injectSeekBridge()
     const script = document.getElementById(BRIDGE_ID)
-    expect(script.textContent).toContain(SEEK_MSG_TYPE)
+    expect(script.src).toContain('seek_bridge_injected.js')
   })
 })

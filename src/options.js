@@ -75,8 +75,10 @@ btnClear?.addEventListener('click', async () => {
   clearMsg()
 
   try {
-    await chrome.runtime.sendMessage({ type: 'CLEAR_API_KEY' })
+    const res = await chrome.runtime.sendMessage({ type: 'CLEAR_API_KEY' })
+    if (res && !res.ok) throw new Error(res.error?.message || 'Failed to remove key')
     showMsg('API key removed.')
+    checkBackendStatus()
   } catch (err) {
     showMsg(err.message ?? 'Failed to remove key.', true)
   } finally {

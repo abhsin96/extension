@@ -218,6 +218,22 @@ button:disabled { opacity: .4; cursor: default; }
   .cancel-btn:hover { background: #4f4f4f; }
 }
 
+/* ---- API key required banner ---- */
+.key-banner {
+  padding: 10px 16px; background: #fef2f2; color: #dc2626;
+  border-bottom: 1px solid #fca5a5; font-size: 13px;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+@media (prefers-color-scheme: dark) {
+  .key-banner { background: #2a1010; color: #f87171; border-bottom-color: #7f1d1d; }
+}
+.key-banner-link {
+  margin-left: auto; padding: 3px 10px; background: transparent;
+  border: 1px solid currentColor; border-radius: 4px; cursor: pointer;
+  font-size: 12px; color: inherit; flex-shrink: 0; font-family: inherit;
+}
+.key-banner-link:hover { background: rgba(220,38,38,.08); }
+
 /* ---- Toast banner ---- */
 .toast {
   padding: 10px 16px; background: #fff3cd; color: #664d03;
@@ -243,6 +259,10 @@ function buildTemplate() {
         <span class="sidebar-title">YouTube Q&amp;A</span>
         <button class="close-btn" aria-label="Close sidebar">✕</button>
       </header>
+      <div class="key-banner" hidden role="alert">
+        <span>An API key is required to ask questions.</span>
+        <button class="key-banner-link">Configure →</button>
+      </div>
       <div class="toast" hidden role="alert"></div>
       <div class="message-list" role="log" aria-live="polite" aria-label="Chat messages"></div>
       <footer class="sidebar-footer">
@@ -267,7 +287,7 @@ export function msgId() {
   return `msg-${++_idCounter}`
 }
 
-export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
+export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions } = {}) {
   const host = document.createElement('div')
   host.id = 'yt-qa-root'
 
@@ -293,9 +313,12 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
   const clearBtn = $('.clear-btn')
   const cancelBtn = $('.cancel-btn')
   const toastEl = $('.toast')
+  const keyBannerEl = $('.key-banner')
+  const keyBannerLink = $('.key-banner-link')
 
   let _open = false
   let _loading = false
+  let _keyRequired = false
   let loadingEl = null
   let _clearPending = false
   let _clearTimer = null
@@ -507,9 +530,17 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
     onClear?.()
   }
 
+  // -- API key required gate --
+  function setApiKeyRequired(required) {
+    _keyRequired = !!required
+    keyBannerEl.hidden = !_keyRequired
+    textarea.disabled = _keyRequired
+    updateSendBtn()
+  }
+
   // -- Input --
   function updateSendBtn() {
-    sendBtn.disabled = _loading || textarea.value.trim() === ''
+    sendBtn.disabled = _loading || _keyRequired || textarea.value.trim() === ''
   }
 
   function autoGrow() {
@@ -535,9 +566,8 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
   toggleBtn.addEventListener('click', () => (_open ? close() : open()))
   closeBtn.addEventListener('click', close)
   sendBtn.addEventListener('click', handleSend)
-  cancelBtn.addEventListener('click', () => {
-    if (_onCancel) _onCancel()
-  })
+  cancelBtn.addEventListener('click', () => { if (_onCancel) _onCancel() })
+  keyBannerLink.addEventListener('click', () => onOpenOptions?.())
 
   clearBtn.addEventListener('click', () => {
     if (!_clearPending) {
@@ -647,6 +677,7 @@ export function createSidebar({ onSend, onClose, onClear, onSeek } = {}) {
     clearCancellable,
     showToast,
     hideToast,
+    setApiKeyRequired,
     showToggleButton,
     hideToggleButton,
     isOpen: () => _open,

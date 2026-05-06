@@ -45,6 +45,7 @@ injectSeekBridge()
 const sidebar = createSidebar({
   onSend: (question) => session.handleSend(question, currentVideoId),
   onSeek: seekVideo,
+  onOpenOptions: () => chrome.runtime.openOptionsPage(),
 })
 
 const session = createQaSession({
@@ -119,6 +120,12 @@ function broadcast(videoId, url) {
   }
   console.log(SENTINEL, { videoId, url })
   chrome.runtime.sendMessage({ type: 'VIDEO_CHANGED', videoId, url })
+    .then((res) => {
+      if (res?.ok && res.data?.health) {
+        sidebar.setApiKeyRequired(!res.data.health.has_api_key)
+      }
+    })
+    .catch(() => {}) // backend unreachable — toast in wiring.js handles this
 }
 
 const debouncedBroadcast = debounce(broadcast, DEBOUNCE_MS)

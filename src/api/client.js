@@ -165,7 +165,7 @@ const apiClient = {
    */
   async setApiKey(key) {
     await _request('/config/api-key', {
-      method: 'POST',
+      method: 'PUT',
       body: JSON.stringify({ api_key: key }),
     })
   },

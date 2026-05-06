@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Chrome stub
-const sendMessage = vi.fn()
-vi.stubGlobal('chrome', { runtime: { sendMessage } })
+const sendMessage = vi.fn().mockResolvedValue({})
+vi.stubGlobal('chrome', {
+  runtime: {
+    sendMessage,
+    getURL: (p) => `chrome-extension://fake/${p}`,
+  },
+})
 
 // ---------------------------------------------------------------------------
 // Listener / history-patch cleanup between tests
@@ -54,7 +59,9 @@ function restoreHistoryMethods() {
 // Re-import the module fresh for each test to reset lastVideoId state
 async function loadScript() {
   vi.resetModules()
-  vi.stubGlobal('chrome', { runtime: { sendMessage } })
+  vi.stubGlobal('chrome', {
+    runtime: { sendMessage, getURL: (p) => `chrome-extension://fake/${p}` },
+  })
   patchAddEventListeners()
   await import('../src/content_script.js')
 }
@@ -182,9 +189,12 @@ describe('debounce', () => {
 
     vi.runAllTimers()
 
-    // Only the last one should have been broadcast
-    expect(sendMessage).toHaveBeenCalledTimes(1)
-    expect(sendMessage).toHaveBeenCalledWith(
+    // Only one VIDEO_CHANGED should fire (for v3 — the last debounced event)
+    const videoChangedCalls = sendMessage.mock.calls.filter(
+      ([m]) => m?.type === 'VIDEO_CHANGED',
+    )
+    expect(videoChangedCalls).toHaveLength(1)
+    expect(videoChangedCalls[0][0]).toEqual(
       expect.objectContaining({ type: 'VIDEO_CHANGED', videoId: 'v3' }),
     )
   })
