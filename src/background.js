@@ -22,20 +22,19 @@ import apiClient from './api/client.js'
 let currentVideoId = null
 
 // Injected at build time from .env — empty string when not set.
-
 const BUILD_API_KEY = __OPENAI_API_KEY__
+
+// Kick off key sync immediately on every service-worker start so it is ready
+// before the first VIDEO_CHANGED → pingHealth round-trip.  onInstalled and
+// onStartup do NOT fire on plain SW restarts, so the module-level call is the
+// only reliable place.  We capture the Promise so handleVideoChanged can await
+// it instead of racing against it.
+let _keySyncPromise = BUILD_API_KEY
+  ? apiClient.setApiKey(BUILD_API_KEY).catch(() => {})
+  : null
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('YouTube Q&A: service worker installed')
-  if (BUILD_API_KEY) {
-    apiClient.setApiKey(BUILD_API_KEY).catch(() => {})
-  }
-})
-
-chrome.runtime.onStartup.addListener(() => {
-  if (BUILD_API_KEY) {
-    apiClient.setApiKey(BUILD_API_KEY).catch(() => {})
-  }
 })
 
 // Restore last known video ID across service worker restarts
@@ -53,6 +52,11 @@ chrome.storage.session
 async function handleVideoChanged({ videoId, url }) {
   currentVideoId = videoId
   await chrome.storage.session.set({ currentVideoId: videoId })
+  // Wait for the one-time key sync to complete so pingHealth sees has_api_key: true.
+  if (_keySyncPromise) {
+    await _keySyncPromise
+    _keySyncPromise = null
+  }
   const health = await apiClient.pingHealth()
   return { videoId, url: url ?? null, health }
 }
