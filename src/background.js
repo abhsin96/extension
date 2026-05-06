@@ -28,13 +28,13 @@ const BUILD_API_KEY = __OPENAI_API_KEY__
 chrome.runtime.onInstalled.addListener(() => {
   console.log('YouTube Q&A: service worker installed')
   if (BUILD_API_KEY) {
-    apiClient.setApiKey(BUILD_API_KEY).catch(console.error)
+    apiClient.setApiKey(BUILD_API_KEY).catch(() => {})
   }
 })
 
 chrome.runtime.onStartup.addListener(() => {
   if (BUILD_API_KEY) {
-    apiClient.setApiKey(BUILD_API_KEY).catch(console.error)
+    apiClient.setApiKey(BUILD_API_KEY).catch(() => {})
   }
 })
 
