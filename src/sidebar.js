@@ -67,7 +67,7 @@ const CSS = `
   color: #aaa; font-size: 13px; text-align: center; margin-top: 32px;
   align-self: center;
 }
-.message { display: flex; max-width: 90%; }
+.message { display: flex; flex-direction: column; gap: 12px; max-width: 90%; }
 .message--user { align-self: flex-end; }
 .message--assistant, .message--error { align-self: flex-start; }
 .message-bubble {
@@ -665,7 +665,9 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   toggleBtn.addEventListener('click', () => (_open ? close() : open()))
   closeBtn.addEventListener('click', close)
   sendBtn.addEventListener('click', handleSend)
-  cancelBtn.addEventListener('click', () => { if (_onCancel) _onCancel() })
+  cancelBtn.addEventListener('click', () => {
+    if (_onCancel) _onCancel()
+  })
   keyBannerLink.addEventListener('click', () => onOpenOptions?.())
 
   clearBtn.addEventListener('click', () => {
