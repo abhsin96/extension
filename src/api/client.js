@@ -112,26 +112,40 @@ const apiClient = {
   /**
    * Ask a question about an ingested video.
    *
-   * Maps to POST /chat/{videoId} on the backend.
+   * Maps to POST /query on the backend with unified endpoint.
+   * Supports streaming and advanced mode via flags.
    * Detects refusals from the model and surfaces them via `refused: true`
    * rather than as an exception — callers can choose to show the answer text
    * or prompt the user to re-phrase.
    *
    * @param {string}   videoId
    * @param {string}   question
-   * @param {Array}    [history]  - Reserved for future multi-turn support
-   * @param {{ k?: number }} [opts]
+   * @param {Array}    [history]  - Conversation history for multi-turn support
+   * @param {{ k?: number, stream?: boolean, advanced?: boolean, threadId?: string }} [opts]
    * @returns {Promise<import('./types.js').AskResponse>}
    * @throws {VideoNotIngestedError} When the video has not been ingested (404)
    * @throws {BackendUnreachableError}
    * @throws {ApiError}
    */
-  async ask(videoId, question, history = [], { k = 5 } = {}) {
+  async ask(
+    videoId,
+    question,
+    history = [],
+    { k = 5, stream = false, advanced = true, threadId = null } = {},
+  ) {
     let raw
     try {
-      raw = await _request(`/chat/${videoId}`, {
+      raw = await _request('/query', {
         method: 'POST',
-        body: JSON.stringify({ question, k, conversation_history: history }),
+        body: JSON.stringify({
+          video_id: videoId,
+          question,
+          k,
+          stream,
+          advanced,
+          conversation_history: history,
+          thread_id: threadId,
+        }),
       })
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
@@ -140,18 +154,20 @@ const apiClient = {
       throw err
     }
 
-    const refused = raw.answer?.toLowerCase().includes(REFUSAL_SENTINEL) ?? false
+    // Handle both simple and advanced mode responses
+    const refused = raw.refused ?? raw.answer?.toLowerCase().includes(REFUSAL_SENTINEL) ?? false
 
     return {
       answer: raw.answer,
-      citations: (raw.sources ?? []).map((s) => ({
+      citations: (raw.citations ?? raw.sources ?? []).map((s) => ({
         chunk_id: s.chunk_id,
         start_ts: s.start_ts,
         end_ts: s.end_ts,
         text: s.text,
       })),
       refused,
-      tokens_used: raw.tokens_used, // undefined until BE exposes it
+      tokens_used: raw.tokens_used,
+      thread_id: raw.thread_id,
     }
   },
 
