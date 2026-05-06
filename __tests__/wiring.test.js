@@ -21,6 +21,16 @@ function makeSidebar() {
   }
 }
 
+function makeStorage(initialTurns = []) {
+  let _turns = [...initialTurns]
+  return {
+    getHistory: vi.fn(async () => [..._turns]),
+    appendTurn: vi.fn(async (_id, turn) => { _turns.push(turn) }),
+    clearHistory: vi.fn(async () => { _turns = [] }),
+    _getTurns: () => _turns,
+  }
+}
+
 /** Flush all pending microtasks and one macrotask tick */
 async function flushAsync() {
   await new Promise((r) => setTimeout(r, 0))
@@ -64,7 +74,9 @@ describe('ask happy path', () => {
     await session.handleSend(QUESTION, VIDEO_ID)
 
     expect(sendMessage).toHaveBeenCalledWith({ type: 'INGEST_VIDEO', videoId: VIDEO_ID })
-    expect(sendMessage).toHaveBeenCalledWith({ type: 'ASK_QUESTION', videoId: VIDEO_ID, question: QUESTION })
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'ASK_QUESTION', videoId: VIDEO_ID, question: QUESTION }),
+    )
     expect(sidebar.addMessage).toHaveBeenCalledWith(
       expect.objectContaining({ role: 'user', text: QUESTION }),
     )
@@ -240,5 +252,141 @@ describe('backend unreachable', () => {
     await vi.runAllTimersAsync()
 
     expect(sidebar.hideToast).toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// History: storage integration
+// ---------------------------------------------------------------------------
+
+describe('history storage', () => {
+  it('passes stored history in the ASK_QUESTION message', async () => {
+    const storedTurns = [
+      { role: 'user', content: 'prior question', timestamp: 1 },
+      { role: 'assistant', content: 'prior answer', timestamp: 2 },
+    ]
+    const storage = makeStorage(storedTurns)
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi.fn()
+      .mockResolvedValueOnce(INGEST_OK)
+      .mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage, storage })
+
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+
+    const askCall = localSendMessage.mock.calls.find((c) => c[0].type === 'ASK_QUESTION')
+    expect(askCall[0].history).toEqual(storedTurns)
+  })
+
+  it('appends user and assistant turns after a successful ask', async () => {
+    const storage = makeStorage()
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi.fn()
+      .mockResolvedValueOnce(INGEST_OK)
+      .mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage, storage })
+
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+
+    expect(storage.appendTurn).toHaveBeenCalledWith(VIDEO_ID, { role: 'user', content: QUESTION })
+    expect(storage.appendTurn).toHaveBeenCalledWith(VIDEO_ID, { role: 'assistant', content: ASK_OK.data.answer })
+  })
+
+  it('does not append turns when the ask fails', async () => {
+    const storage = makeStorage()
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi.fn()
+      .mockResolvedValueOnce(INGEST_OK)
+      .mockResolvedValueOnce({ ok: false, error: { code: 'ERR', message: 'fail' } })
+    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage, storage })
+
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+
+    expect(storage.appendTurn).not.toHaveBeenCalled()
+  })
+
+  it('passes empty history when no prior turns exist', async () => {
+    const storage = makeStorage([])
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi.fn()
+      .mockResolvedValueOnce(INGEST_OK)
+      .mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage, storage })
+
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+
+    const askCall = localSendMessage.mock.calls.find((c) => c[0].type === 'ASK_QUESTION')
+    expect(askCall[0].history).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// History: loadHistory
+// ---------------------------------------------------------------------------
+
+describe('loadHistory', () => {
+  it('adds messages for each stored turn', async () => {
+    const storedTurns = [
+      { role: 'user', content: 'q1', timestamp: 1 },
+      { role: 'assistant', content: 'a1', timestamp: 2 },
+    ]
+    const storage = makeStorage(storedTurns)
+    const localSidebar = makeSidebar()
+    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: vi.fn(), storage })
+
+    await localSession.loadHistory(VIDEO_ID)
+
+    expect(localSidebar.addMessage).toHaveBeenCalledTimes(2)
+    expect(localSidebar.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'user', text: 'q1' }),
+    )
+    expect(localSidebar.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'assistant', text: 'a1' }),
+    )
+  })
+
+  it('adds nothing when history is empty', async () => {
+    const storage = makeStorage([])
+    const localSidebar = makeSidebar()
+    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: vi.fn(), storage })
+
+    await localSession.loadHistory(VIDEO_ID)
+
+    expect(localSidebar.addMessage).not.toHaveBeenCalled()
+  })
+
+  it('is a no-op when no storage is provided', async () => {
+    const localSidebar = makeSidebar()
+    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: vi.fn() })
+
+    await expect(localSession.loadHistory(VIDEO_ID)).resolves.toBeUndefined()
+    expect(localSidebar.addMessage).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// History: handleClear
+// ---------------------------------------------------------------------------
+
+describe('handleClear', () => {
+  it('calls storage.clearHistory with the current video ID', async () => {
+    const storage = makeStorage()
+    const localSession = createQaSession({ sidebar: makeSidebar(), sendMessage: vi.fn(), storage })
+
+    await localSession.handleClear(VIDEO_ID)
+
+    expect(storage.clearHistory).toHaveBeenCalledWith(VIDEO_ID)
+  })
+
+  it('is a no-op when no storage is provided', async () => {
+    const localSession = createQaSession({ sidebar: makeSidebar(), sendMessage: vi.fn() })
+    await expect(localSession.handleClear(VIDEO_ID)).resolves.toBeUndefined()
+  })
+
+  it('is a no-op when videoId is null', async () => {
+    const storage = makeStorage()
+    const localSession = createQaSession({ sidebar: makeSidebar(), sendMessage: vi.fn(), storage })
+    await localSession.handleClear(null)
+    expect(storage.clearHistory).not.toHaveBeenCalled()
   })
 })

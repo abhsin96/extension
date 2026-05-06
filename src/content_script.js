@@ -7,6 +7,7 @@ import { extractVideoId } from './utils/videoId.js'
 import { createSidebar } from './sidebar.js'
 import { createQaSession } from './wiring.js'
 import { injectSeekBridge, seekVideo } from './utils/seek_bridge.js'
+import * as historyStorage from './history.js'
 
 const SENTINEL = '[YouTube Q&A] content script active'
 const DEBOUNCE_MS = 200
@@ -44,6 +45,7 @@ injectSeekBridge()
 
 const sidebar = createSidebar({
   onSend: (question) => session.handleSend(question, currentVideoId),
+  onClear: () => session.handleClear(currentVideoId),
   onSeek: seekVideo,
   onOpenOptions: () => chrome.runtime.openOptionsPage(),
 })
@@ -51,6 +53,7 @@ const sidebar = createSidebar({
 const session = createQaSession({
   sidebar,
   sendMessage: (msg) => chrome.runtime.sendMessage(msg),
+  storage: historyStorage,
 })
 
 // Inject sidebar host adjacent to #secondary (YouTube's recommendations panel)
@@ -115,7 +118,7 @@ function broadcast(videoId, url) {
   if (videoId !== currentVideoId) {
     currentVideoId = videoId
     sidebar.clearMessages()
-    // Check transcript availability when video changes
+    session.loadHistory(videoId)
     checkTranscriptAvailability(videoId)
   }
   console.log(SENTINEL, { videoId, url })

@@ -2,11 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Chrome stub
 const sendMessage = vi.fn().mockResolvedValue({})
+const storageMock = {
+  get: vi.fn().mockResolvedValue({}),
+  set: vi.fn().mockResolvedValue(undefined),
+  remove: vi.fn().mockResolvedValue(undefined),
+}
 vi.stubGlobal('chrome', {
   runtime: {
     sendMessage,
     getURL: (p) => `chrome-extension://fake/${p}`,
   },
+  storage: { local: storageMock },
 })
 
 // ---------------------------------------------------------------------------
@@ -61,6 +67,7 @@ async function loadScript() {
   vi.resetModules()
   vi.stubGlobal('chrome', {
     runtime: { sendMessage, getURL: (p) => `chrome-extension://fake/${p}` },
+    storage: { local: storageMock },
   })
   patchAddEventListeners()
   await import('../src/content_script.js')

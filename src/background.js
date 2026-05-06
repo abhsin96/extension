@@ -61,9 +61,9 @@ async function handleIngestVideo({ videoId, force = false }) {
   return apiClient.ingest(videoId, { force })
 }
 
-async function handleAskQuestion({ videoId, question, k }) {
+async function handleAskQuestion({ videoId, question, history = [], k }) {
   const opts = k !== undefined ? { k } : {}
-  return apiClient.ask(videoId, question, [], opts)
+  return apiClient.ask(videoId, question, history, opts)
 }
 
 async function handleGetStatus() {

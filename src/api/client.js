@@ -126,12 +126,12 @@ const apiClient = {
    * @throws {BackendUnreachableError}
    * @throws {ApiError}
    */
-  async ask(videoId, question, _history = [], { k = 5 } = {}) {
+  async ask(videoId, question, history = [], { k = 5 } = {}) {
     let raw
     try {
       raw = await _request(`/chat/${videoId}`, {
         method: 'POST',
-        body: JSON.stringify({ question, k }),
+        body: JSON.stringify({ question, k, conversation_history: history }),
       })
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {

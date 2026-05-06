@@ -2,15 +2,15 @@
  * QA session — wires the sidebar UI to the Chrome message bus.
  * Extracted from content_script.js so it can be unit-tested independently.
  *
- * @param {{ sidebar: object, sendMessage: Function }} deps
- * @returns {{ handleSend: Function }}
+ * @param {{ sidebar: object, sendMessage: Function, storage?: object }} deps
+ * @returns {{ handleSend: Function, loadHistory: Function, handleClear: Function }}
  */
 
 import { msgId } from './sidebar.js'
 
 const HEALTH_POLL_MS = 5_000
 
-export function createQaSession({ sidebar, sendMessage }) {
+export function createQaSession({ sidebar, sendMessage, storage = null }) {
   // Video IDs we've successfully auto-ingested this browser session.
   const _ingestedIds = new Set()
 
@@ -53,6 +53,25 @@ export function createQaSession({ sidebar, sendMessage }) {
       },
     })
     _startHealthPoll()
+  }
+
+  async function loadHistory(videoId) {
+    if (!storage || !videoId) return
+    const turns = await storage.getHistory(videoId)
+    if (turns.length === 0) return
+    for (const turn of turns) {
+      sidebar.addMessage({
+        id: msgId(),
+        role: turn.role,
+        text: turn.content,
+      })
+    }
+  }
+
+  async function handleClear(videoId) {
+    if (storage && videoId) {
+      await storage.clearHistory(videoId)
+    }
   }
 
   async function handleSend(question, videoId) {
@@ -120,9 +139,12 @@ export function createQaSession({ sidebar, sendMessage }) {
       sidebar.clearCancellable()
     })
 
+    // Build history: all turns stored so far (excluding the question just added to sidebar).
+    const history = storage ? await storage.getHistory(videoId) : []
+
     let res
     try {
-      res = await sendMessage({ type: 'ASK_QUESTION', videoId, question })
+      res = await sendMessage({ type: 'ASK_QUESTION', videoId, question, history })
     } catch (err) {
       if (ref.cancelled) return
       sidebar.finalizeMessage(skeletonId, { role: 'error', text: err?.message ?? 'Connection error.' })
@@ -139,17 +161,23 @@ export function createQaSession({ sidebar, sendMessage }) {
     _currentRef = null
 
     if (res.ok) {
+      const answer = res.data.answer
       sidebar.finalizeMessage(skeletonId, {
         role: 'assistant',
-        text: res.data.answer,
+        text: answer,
         refused: res.data.refused,
         citations: res.data.citations ?? [],
       })
+      // Persist both turns after a successful response.
+      if (storage) {
+        await storage.appendTurn(videoId, { role: 'user', content: question })
+        await storage.appendTurn(videoId, { role: 'assistant', content: answer })
+      }
     } else {
       sidebar.finalizeMessage(skeletonId, { role: 'error', text: res.error.message })
       if (res.error.code === 'BACKEND_UNREACHABLE') _showBackendToast(question, videoId)
     }
   }
 
-  return { handleSend }
+  return { handleSend, loadHistory, handleClear }
 }
