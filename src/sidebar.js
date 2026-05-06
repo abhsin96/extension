@@ -114,6 +114,16 @@ const CSS = `
   .loading { background: #2f2f2f; color: #aaa; }
 }
 
+/* ---- Typewriter cursor ---- */
+.message-bubble--typing::after {
+  content: '|';
+  display: inline-block;
+  margin-left: 1px;
+  color: #cc0000;
+  animation: blink-cursor .7s step-end infinite;
+}
+@keyframes blink-cursor { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
+
 /* ---- Footer ---- */
 .sidebar-footer {
   padding: 12px; border-top: 1px solid #e5e5e5;
@@ -565,6 +575,68 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
     return role === 'assistant' || refused
   }
 
+  // Reveal *text* into *bubble* one character at a time, handling timestamp links.
+  // Returns a cancel() function. Citations are appended via onComplete().
+  function _typewriterReveal(bubble, text, { onComplete, onTick } = {}) {
+    // Tokenise: interleave plain chars and pre-built link elements.
+    TS_RE.lastIndex = 0
+    const tokens = []
+    let last = 0
+    let m
+    while ((m = TS_RE.exec(text)) !== null) {
+      for (const ch of text.slice(last, m.index)) tokens.push({ type: 'char', ch })
+      const sec = parseTimestamp(m[1])
+      if (sec !== null) {
+        tokens.push({ type: 'link', el: _makeSeekLink(m[0], sec) })
+      } else {
+        for (const ch of m[0]) tokens.push({ type: 'char', ch })
+      }
+      last = m.index + m[0].length
+    }
+    for (const ch of text.slice(last)) tokens.push({ type: 'char', ch })
+
+    // Scale speed so the animation lasts ~1.5 s regardless of length.
+    const charsPerFrame = Math.max(2, Math.ceil(tokens.length / 90))
+
+    bubble.classList.add('message-bubble--typing')
+    let i = 0
+    let cancelled = false
+    let currentTextNode = null
+    let rafId
+
+    function tick() {
+      if (cancelled) return
+      for (let b = 0; b < charsPerFrame && i < tokens.length; b++, i++) {
+        const t = tokens[i]
+        if (t.type === 'char') {
+          if (currentTextNode) {
+            currentTextNode.nodeValue += t.ch
+          } else {
+            currentTextNode = document.createTextNode(t.ch)
+            bubble.appendChild(currentTextNode)
+          }
+        } else {
+          currentTextNode = null
+          bubble.appendChild(t.el)
+        }
+      }
+      onTick?.()
+      if (i < tokens.length) {
+        rafId = requestAnimationFrame(tick)
+      } else {
+        bubble.classList.remove('message-bubble--typing')
+        onComplete?.()
+      }
+    }
+
+    rafId = requestAnimationFrame(tick)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(rafId)
+      bubble.classList.remove('message-bubble--typing')
+    }
+  }
+
   function addMessage({ id, role, text, refused = false, citations = [] }) {
     clearEmptyState()
     const msgDiv = document.createElement('div')
@@ -605,7 +677,7 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
     return msgDiv
   }
 
-  function finalizeMessage(id, { role, text, refused = false, citations = [] }) {
+  function finalizeMessage(id, { role, text, refused = false, citations = [], animate = false }) {
     const el = messageList.querySelector(`[data-id="${id}"]`)
     if (!el) return addMessage({ id, role, text, refused, citations })
     const effectiveRole = refused ? 'refusal' : role
@@ -613,13 +685,23 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
     el.dataset.role = role
     const bubble = el.querySelector('.message-bubble')
     bubble.innerHTML = ''
-    if (_isRichRole(role, refused)) {
-      _renderText(bubble, text)
-    } else {
-      bubble.textContent = text
-    }
     el.querySelector('.citations')?.remove()
-    if (_isRichRole(role, refused)) {
+
+    if (animate && _isRichRole(role, refused)) {
+      _typewriterReveal(bubble, text, {
+        onTick: () => { messageList.scrollTop = messageList.scrollHeight },
+        onComplete: () => {
+          const cit = _buildCitationBlock(citations)
+          if (cit) el.appendChild(cit)
+          messageList.scrollTop = messageList.scrollHeight
+        },
+      })
+    } else {
+      if (_isRichRole(role, refused)) {
+        _renderText(bubble, text)
+      } else {
+        bubble.textContent = text
+      }
       const cit = _buildCitationBlock(citations)
       if (cit) el.appendChild(cit)
     }

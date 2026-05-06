@@ -186,6 +186,7 @@ export function createQaSession({ sidebar, sendMessage, storage = null }) {
         text: answer,
         refused: res.data.refused,
         citations: res.data.citations ?? [],
+        animate: true,
       })
       if (storage) {
         await storage.appendTurn(videoId, { role: 'user', content: question })
