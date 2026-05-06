@@ -5,6 +5,7 @@ export default defineConfig({
     __OPENAI_API_KEY__: JSON.stringify(''),
   },
   test: {
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
     environment: 'jsdom',
     testEnvironmentOptions: {
       url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',

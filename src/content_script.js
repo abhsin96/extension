@@ -132,6 +132,8 @@ function broadcast(videoId, url) {
         } else {
           sidebar.clearEmptyState()
         }
+      } else if (!res?.ok) {
+        sidebar.showEmptyState('backend-down')
       }
     })
     .catch(() => {

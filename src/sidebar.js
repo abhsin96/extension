@@ -278,29 +278,30 @@ button:disabled { opacity: .4; cursor: default; }
 
 function buildTemplate() {
   return `
-    <button class="toggle-btn" aria-label="Toggle Q&A sidebar" title="YouTube Q&A">💬</button>
-    <aside class="sidebar" role="complementary" aria-label="YouTube Q&A Chat">
+    <button class="toggle-btn" aria-label="Toggle Q&A sidebar" title="YouTube Q&A" data-testid="sidebar-toggle">💬</button>
+    <aside class="sidebar" role="complementary" aria-label="YouTube Q&A Chat" data-testid="sidebar-panel">
       <header class="sidebar-header">
         <span class="sidebar-title">YouTube Q&amp;A</span>
-        <button class="close-btn" aria-label="Close sidebar">✕</button>
+        <button class="close-btn" aria-label="Close sidebar" data-testid="close-btn">✕</button>
       </header>
-      <div class="key-banner" hidden role="alert">
+      <div class="key-banner" hidden role="alert" data-testid="key-banner">
         <span>An API key is required to ask questions.</span>
         <button class="key-banner-link">Configure →</button>
       </div>
-      <div class="toast" hidden role="alert"></div>
-      <div class="message-list" role="log" aria-live="polite" aria-label="Chat messages"></div>
+      <div class="toast" hidden role="alert" data-testid="toast"></div>
+      <div class="message-list" role="log" aria-live="polite" aria-label="Chat messages" data-testid="message-list"></div>
       <footer class="sidebar-footer">
         <textarea
           class="input"
           placeholder="Ask a question about this video…"
           rows="1"
           aria-label="Question"
+          data-testid="question-input"
         ></textarea>
         <div class="action-row">
-          <button class="cancel-btn" hidden aria-label="Cancel">Cancel</button>
-          <button class="clear-btn" aria-label="Clear conversation">Clear</button>
-          <button class="send-btn" disabled aria-label="Send question">Send</button>
+          <button class="cancel-btn" hidden aria-label="Cancel" data-testid="cancel-btn">Cancel</button>
+          <button class="clear-btn" aria-label="Clear conversation" data-testid="clear-btn">Clear</button>
+          <button class="send-btn" disabled aria-label="Send question" data-testid="send-btn">Send</button>
         </div>
       </footer>
     </aside>
@@ -411,6 +412,7 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
     if (action) {
       const btn = document.createElement('button')
       btn.className = 'toast-action'
+      btn.setAttribute('data-testid', 'toast-action')
       btn.textContent = action
       if (onAction) btn.addEventListener('click', onAction)
       toastEl.appendChild(btn)
