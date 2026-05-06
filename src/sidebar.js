@@ -330,10 +330,11 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   const shadow = host.attachShadow({ mode: 'open' })
 
   // Keyboard events bubble from the shadow DOM up through the host into the
-  // main page, where YouTube intercepts them as shortcuts. Stop them here so
-  // nothing the user types in our UI reaches YouTube's handlers.
+  // main page, where YouTube intercepts them as shortcuts. Stop them in the
+  // bubble phase (NOT capture) so the shadow DOM's own listeners fire first,
+  // then we block further propagation to YouTube before it reaches the document.
   for (const type of ['keydown', 'keyup', 'keypress']) {
-    host.addEventListener(type, (e) => e.stopPropagation(), true)
+    host.addEventListener(type, (e) => e.stopPropagation())
   }
 
   const styleEl = document.createElement('style')
