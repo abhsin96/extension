@@ -1,5 +1,5 @@
 /**
- * YouTube Q&A Chat Sidebar.
+ * ClipConvo Chat Sidebar.
  * Creates a Shadow DOM-isolated sidebar + floating toggle button.
  *
  * @param {{ onSend?: Function, onClose?: Function, onClear?: Function, onSeek?: Function }} [callbacks]
@@ -288,10 +288,10 @@ button:disabled { opacity: .4; cursor: default; }
 
 function buildTemplate() {
   return `
-    <button class="toggle-btn" aria-label="Toggle Q&A sidebar" title="YouTube Q&A" data-testid="sidebar-toggle">💬</button>
-    <aside class="sidebar" role="complementary" aria-label="YouTube Q&A Chat" data-testid="sidebar-panel">
+    <button class="toggle-btn" aria-label="Toggle Q&A sidebar" title="ClipConvo" data-testid="sidebar-toggle">💬</button>
+    <aside class="sidebar" role="complementary" aria-label="ClipConvo Chat" data-testid="sidebar-panel">
       <header class="sidebar-header">
-        <span class="sidebar-title">YouTube Q&amp;A</span>
+        <span class="sidebar-title">ClipConvo</span>
         <button class="close-btn" aria-label="Close sidebar" data-testid="close-btn">✕</button>
       </header>
       <div class="key-banner" hidden role="alert" data-testid="key-banner">
@@ -690,7 +690,9 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
 
     if (animate && _isRichRole(role, refused)) {
       _typewriterReveal(bubble, text, {
-        onTick: () => { messageList.scrollTop = messageList.scrollHeight },
+        onTick: () => {
+          messageList.scrollTop = messageList.scrollHeight
+        },
         onComplete: () => {
           const cit = _buildCitationBlock(citations)
           if (cit) el.appendChild(cit)
