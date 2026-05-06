@@ -319,6 +319,13 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
 
   const shadow = host.attachShadow({ mode: 'open' })
 
+  // Keyboard events bubble from the shadow DOM up through the host into the
+  // main page, where YouTube intercepts them as shortcuts. Stop them here so
+  // nothing the user types in our UI reaches YouTube's handlers.
+  for (const type of ['keydown', 'keyup', 'keypress']) {
+    host.addEventListener(type, (e) => e.stopPropagation(), true)
+  }
+
   const styleEl = document.createElement('style')
   styleEl.textContent = CSS
 
@@ -692,7 +699,6 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   })
 
   textarea.addEventListener('keydown', (e) => {
-    // Stop all keyboard events from bubbling to YouTube's page
     e.stopPropagation()
 
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -701,6 +707,9 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
     }
     if (e.key === 'Escape') close()
   })
+
+  textarea.addEventListener('keyup', (e) => e.stopPropagation())
+  textarea.addEventListener('keypress', (e) => e.stopPropagation())
 
   // Cmd/Ctrl+L clears input from anywhere inside the wrapper div
   wrapper.addEventListener('keydown', (e) => {
