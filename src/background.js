@@ -52,12 +52,22 @@ chrome.storage.session
 async function handleVideoChanged({ videoId, url }) {
   currentVideoId = videoId
   await chrome.storage.session.set({ currentVideoId: videoId })
-  // Wait for the one-time key sync to complete so pingHealth sees has_api_key: true.
+
+  // Wait for the module-startup key sync (guards against the first-load race).
   if (_keySyncPromise) {
     await _keySyncPromise
     _keySyncPromise = null
   }
-  const health = await apiClient.pingHealth()
+
+  let health = await apiClient.pingHealth()
+
+  // If the backend still reports no key but we have one embedded at build time,
+  // the startup sync must have failed (backend wasn't ready yet). Retry once.
+  if (!health.has_api_key && BUILD_API_KEY) {
+    await apiClient.setApiKey(BUILD_API_KEY).catch(() => {})
+    health = await apiClient.pingHealth()
+  }
+
   return { videoId, url: url ?? null, health }
 }
 

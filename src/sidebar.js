@@ -9,100 +9,109 @@
 import { parseTimestamp, formatTimestamp } from './utils/timestamp.js'
 
 const CSS = `
-:host { all: initial; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
+
+:host { all: initial; font-family: 'Be Vietnam Pro', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
 
 /* ---- Toggle button ---- */
 .toggle-btn {
-  position: fixed; bottom: 72px; right: 16px; z-index: 9001;
-  width: 48px; height: 48px; border-radius: 50%;
-  background: #cc0000; color: #fff; border: none; cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,.35); font-size: 22px;
+  position: fixed; bottom: 24px; right: 24px; z-index: 9001;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #2295ed; color: #fff; border: none; cursor: pointer;
+  box-shadow: 0 4px 20px rgba(34,149,237,.45); font-size: 22px;
   display: flex; align-items: center; justify-content: center;
-  transition: opacity .2s, transform .2s;
+  transition: transform .2s, box-shadow .2s;
 }
-.toggle-btn:hover { background: #aa0000; transform: scale(1.05); }
-:host(.open) .toggle-btn { opacity: 0; pointer-events: none; }
+.toggle-btn:hover { transform: scale(1.07); box-shadow: 0 6px 24px rgba(34,149,237,.6); }
 
-/* ---- Sidebar panel ---- */
+/* ---- Popup panel ---- */
 .sidebar {
-  position: fixed; top: 56px; right: 0; width: 360px;
-  height: calc(100vh - 56px); z-index: 9000;
+  position: fixed; bottom: 88px; right: 24px;
+  width: 360px; max-height: 600px; z-index: 9000;
   display: flex; flex-direction: column;
-  transform: translateX(100%); transition: transform .25s ease;
-  background: #fff; border-left: 1px solid #e5e5e5;
-  box-shadow: -4px 0 16px rgba(0,0,0,.1);
+  transform: scale(0.95) translateY(10px);
+  opacity: 0; pointer-events: none;
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1), opacity .15s ease;
+  transform-origin: bottom right;
+  background: #131313; border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 12px 48px rgba(0,0,0,.7), 0 0 0 0.5px rgba(255,255,255,.04);
+  overflow: hidden; color: #f0f0f0;
 }
-:host(.open) .sidebar { transform: translateX(0); }
-
-@media (prefers-color-scheme: dark) {
-  .sidebar { background: #1f1f1f; border-left-color: #3f3f3f; color: #e8e8e8; }
-}
+:host(.open) .sidebar { transform: scale(1) translateY(0); opacity: 1; pointer-events: auto; }
 
 /* Fullscreen — hide everything */
 :host(.fullscreen) .sidebar,
 :host(.fullscreen) .toggle-btn { display: none; }
 
+/* Theater mode */
+:host(.theater) .sidebar { bottom: 24px; }
+
 /* ---- Header ---- */
 .sidebar-header {
-  display: flex; align-items: center; padding: 12px 16px;
-  border-bottom: 1px solid #e5e5e5; flex-shrink: 0;
+  display: flex; align-items: center; padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
+  background: #1a1a1a;
 }
-@media (prefers-color-scheme: dark) {
-  .sidebar-header { border-bottom-color: #3f3f3f; }
+.sidebar-title { font-size: 15px; font-weight: 700; flex: 1; color: #ffffff; letter-spacing: -0.01em; }
+.sidebar-title-spark { color: #2295ed; }
+.header-actions { display: flex; gap: 2px; }
+.header-icon-btn {
+  background: none; border: none; cursor: pointer;
+  width: 30px; height: 30px; border-radius: 8px;
+  color: #6e6e6e; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s; font-family: inherit;
 }
-.sidebar-title { font-size: 15px; font-weight: 600; flex: 1; color: #cc0000; }
+.header-icon-btn:hover { background: rgba(255,255,255,.08); color: #e0e0e0; }
 .close-btn {
   background: none; border: none; cursor: pointer;
-  font-size: 18px; color: #606060; padding: 4px 8px; border-radius: 4px;
+  width: 30px; height: 30px; border-radius: 8px;
+  color: #6e6e6e; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s; font-family: inherit;
 }
-.close-btn:hover { background: rgba(0,0,0,.08); }
+.close-btn:hover { background: rgba(255,255,255,.08); color: #e0e0e0; }
 
 /* ---- Message list ---- */
 .message-list {
-  flex: 1; overflow-y: auto; padding: 12px;
+  flex: 1; overflow-y: auto; padding: 12px 14px;
   display: flex; flex-direction: column; gap: 10px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.12) transparent;
 }
-.message-list:empty::before {
-  content: 'Ask a question to get started.';
-  color: #aaa; font-size: 13px; text-align: center; margin-top: 32px;
-  align-self: center;
-}
-.message { display: flex; flex-direction: column; gap: 12px; max-width: 90%; }
+.message-list::-webkit-scrollbar { width: 4px; }
+.message-list::-webkit-scrollbar-track { background: transparent; }
+.message-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 2px; }
+
+.message { display: flex; flex-direction: column; gap: 8px; max-width: 90%; }
 .message--user { align-self: flex-end; }
 .message--assistant, .message--error { align-self: flex-start; }
 .message-bubble {
-  padding: 8px 12px; border-radius: 12px;
-  font-size: 14px; line-height: 1.5; word-break: break-word; white-space: pre-wrap;
+  padding: 9px 13px; border-radius: 12px;
+  font-size: 14px; line-height: 1.55; word-break: break-word; white-space: pre-wrap;
 }
 .message--user .message-bubble {
-  background: #cc0000; color: #fff; border-bottom-right-radius: 4px;
+  background: #2295ed; color: #fff; border-bottom-right-radius: 4px;
 }
 .message--assistant .message-bubble {
-  background: #f0f0f0; color: #0f0f0f; border-bottom-left-radius: 4px;
-}
-@media (prefers-color-scheme: dark) {
-  .message--assistant .message-bubble { background: #2f2f2f; color: #e8e8e8; }
+  background: #201f1f; color: #f0f0f0; border-bottom-left-radius: 4px;
+  border: 1px solid rgba(255,255,255,.06);
 }
 .message--refusal .message-bubble {
-  background: #fff8e1; color: #6d4c0f; font-style: italic;
-  border: 1px solid #f9c74f; border-bottom-left-radius: 4px;
-}
-@media (prefers-color-scheme: dark) {
-  .message--refusal .message-bubble { background: #2a2010; color: #f9c74f; border-color: #6d4c0f; }
+  background: rgba(255,85,64,.1); color: #ff9b8e; font-style: italic;
+  border: 1px solid rgba(255,85,64,.25); border-bottom-left-radius: 4px;
 }
 .message--error .message-bubble {
-  background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5;
-  border-bottom-left-radius: 4px; font-size: 13px;
-}
-@media (prefers-color-scheme: dark) {
-  .message--error .message-bubble { background: #2a1010; color: #f87171; border-color: #7f1d1d; }
+  background: rgba(255,85,64,.1); color: #ff7b6b;
+  border: 1px solid rgba(255,85,64,.2); border-bottom-left-radius: 4px; font-size: 13px;
 }
 
 /* ---- Loading indicator ---- */
 .loading {
   align-self: flex-start;
-  padding: 8px 14px; background: #f0f0f0; border-radius: 12px;
-  border-bottom-left-radius: 4px; font-size: 13px; color: #606060;
+  padding: 9px 14px; background: #201f1f; border-radius: 12px;
+  border-bottom-left-radius: 4px; font-size: 13px; color: #777;
+  border: 1px solid rgba(255,255,255,.06);
 }
 .loading::after {
   content: ''; display: inline-block; width: 4px; height: 4px;
@@ -110,83 +119,103 @@ const CSS = `
   animation: dot 1.2s infinite;
 }
 @keyframes dot { 0%,80%,100% { opacity: 0 } 40% { opacity: 1 } }
-@media (prefers-color-scheme: dark) {
-  .loading { background: #2f2f2f; color: #aaa; }
-}
 
 /* ---- Typewriter cursor ---- */
 .message-bubble--typing::after {
-  content: '|';
-  display: inline-block;
-  margin-left: 1px;
-  color: #cc0000;
-  animation: blink-cursor .7s step-end infinite;
+  content: '|'; display: inline-block; margin-left: 1px;
+  color: #2295ed; animation: blink-cursor .7s step-end infinite;
 }
 @keyframes blink-cursor { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
 
 /* ---- Footer ---- */
 .sidebar-footer {
-  padding: 12px; border-top: 1px solid #e5e5e5;
+  padding: 10px 12px 12px; border-top: 1px solid rgba(255,255,255,.06);
   flex-shrink: 0; display: flex; flex-direction: column; gap: 8px;
+  background: #1a1a1a;
 }
-@media (prefers-color-scheme: dark) {
-  .sidebar-footer { border-top-color: #3f3f3f; }
+
+/* ---- Quick action chips ---- */
+.quick-chips { display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 2px; }
+.chip {
+  padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.05); color: #999;
+  transition: background .15s, border-color .15s, color .15s; font-family: inherit;
 }
+.chip:hover { background: rgba(34,149,237,.14); border-color: rgba(34,149,237,.35); color: #7ec8f7; }
 
 /* ---- Textarea ---- */
 .input {
   width: 100%; box-sizing: border-box; resize: none;
-  border: 1px solid #d1d5db; border-radius: 8px;
-  padding: 8px 12px; font-size: 14px; font-family: inherit;
-  line-height: 1.5; outline: none; background: #fff; color: #0f0f0f;
+  border: 1px solid rgba(255,255,255,.1); border-radius: 10px;
+  padding: 9px 12px; font-size: 14px; font-family: inherit;
+  line-height: 1.5; outline: none;
+  background: #0d0d0d; color: #f0f0f0;
   overflow-y: hidden; transition: border-color .15s;
 }
-.input:focus { border-color: #cc0000; }
-@media (prefers-color-scheme: dark) {
-  .input { background: #2f2f2f; color: #e8e8e8; border-color: #4f4f4f; }
-  .input:focus { border-color: #cc0000; }
-  .input::placeholder { color: #888; }
-}
+.input:focus { border-color: #2295ed; }
+.input::placeholder { color: #444; }
 
 /* ---- Action row ---- */
-.action-row { display: flex; gap: 8px; justify-content: flex-end; }
+.action-row { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
 button {
-  padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
   cursor: pointer; border: none; transition: opacity .15s, background .15s;
+  font-family: inherit;
 }
-button:disabled { opacity: .4; cursor: default; }
-.send-btn { background: #cc0000; color: #fff; }
-.send-btn:not(:disabled):hover { background: #aa0000; }
-.clear-btn { background: #f0f0f0; color: #606060; }
-.clear-btn:hover { background: #e0e0e0; }
-.clear-btn--confirm { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
-.clear-btn--confirm:hover { background: #fee2e2; }
-@media (prefers-color-scheme: dark) {
-  .clear-btn { background: #3f3f3f; color: #aaa; }
-  .clear-btn:hover { background: #4f4f4f; }
-  .clear-btn--confirm { background: #2a1010; color: #f87171; border-color: #7f1d1d; }
-  .clear-btn--confirm:hover { background: #3a1515; }
-}
+button:disabled { opacity: .35; cursor: default; }
+.send-btn { background: #2295ed; color: #fff; }
+.send-btn:not(:disabled):hover { background: #1a7fd0; }
+.clear-btn { background: rgba(255,255,255,.06); color: #888; border: 1px solid rgba(255,255,255,.08); }
+.clear-btn:hover { background: rgba(255,255,255,.1); color: #bbb; }
+.clear-btn--confirm { background: rgba(255,85,64,.1); color: #ff9b8e; border-color: rgba(255,85,64,.3); }
+.clear-btn--confirm:hover { background: rgba(255,85,64,.18); }
+.cancel-btn { background: rgba(255,255,255,.06); color: #888; border: 1px solid rgba(255,255,255,.08); }
+.cancel-btn:hover { background: rgba(255,255,255,.1); color: #bbb; }
 
-/* Theater mode — sidebar remains a fixed overlay; keep open state intact */
-:host(.theater) .sidebar { top: 0; height: 100vh; }
+/* ---- API key required banner ---- */
+.key-banner {
+  padding: 10px 16px; background: rgba(255,85,64,.1); color: #ff9b8e;
+  border-bottom: 1px solid rgba(255,85,64,.18); font-size: 13px;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.key-banner-link {
+  margin-left: auto; padding: 3px 10px; background: transparent;
+  border: 1px solid rgba(255,85,64,.4); border-radius: 6px; cursor: pointer;
+  font-size: 12px; color: #ff9b8e; flex-shrink: 0; font-family: inherit;
+  transition: background .15s;
+}
+.key-banner-link:hover { background: rgba(255,85,64,.12); }
+
+/* ---- Toast banner ---- */
+.toast {
+  padding: 10px 16px; font-size: 13px;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  background: rgba(255,211,0,.08); color: #ffd966; border-bottom: 1px solid rgba(255,211,0,.18);
+}
+.toast--warn { background: rgba(255,211,0,.08); color: #ffd966; border-bottom-color: rgba(255,211,0,.18); }
+.toast--error { background: rgba(255,85,64,.1); color: #ff9b8e; border-bottom-color: rgba(255,85,64,.18); }
+.toast--info { background: rgba(34,149,237,.1); color: #7ec8f7; border-bottom-color: rgba(34,149,237,.18); }
+.toast-action {
+  margin-left: auto; padding: 3px 10px; background: transparent;
+  border: 1px solid currentColor; border-radius: 6px; cursor: pointer;
+  font-size: 12px; color: inherit; flex-shrink: 0; font-family: inherit;
+  transition: background .15s;
+}
+.toast-action:hover { background: rgba(255,255,255,.08); }
 
 /* ---- Timestamp links ---- */
 .ts-link {
-  color: #065fd4; text-decoration: none; cursor: pointer;
-  border-radius: 2px; padding: 0 1px;
+  color: #2295ed; text-decoration: none; cursor: pointer;
+  border-radius: 3px; padding: 0 1px;
 }
 .ts-link:hover { text-decoration: underline; }
-.ts-link:active { color: #003f8a; }
-@media (prefers-color-scheme: dark) {
-  .ts-link { color: #3ea6ff; }
-  .ts-link:active { color: #7bbfff; }
-}
+.ts-link:active { color: #5cb8ff; }
 
 /* ---- Citation block ---- */
 .citations { margin-top: 8px; font-size: 12px; }
 .citations summary {
-  cursor: pointer; user-select: none; color: #065fd4;
+  cursor: pointer; user-select: none; color: #2295ed;
   font-size: 12px; list-style: none; padding: 2px 0;
 }
 .citations summary:hover { text-decoration: underline; }
@@ -195,76 +224,19 @@ button:disabled { opacity: .4; cursor: default; }
   display: flex; flex-direction: column; gap: 6px;
 }
 .citation-item {
-  background: #f8f8f8; border-left: 2px solid #e0e0e0;
+  background: rgba(255,255,255,.04); border-left: 2px solid rgba(34,149,237,.35);
   padding: 6px 8px; border-radius: 0 6px 6px 0;
 }
-.citation-text { color: #606060; font-size: 12px; line-height: 1.4; }
-@media (prefers-color-scheme: dark) {
-  .citations summary { color: #3ea6ff; }
-  .citation-item { background: #252525; border-left-color: #4f4f4f; }
-  .citation-text { color: #aaa; }
-}
+.citation-text { color: #777; font-size: 12px; line-height: 1.4; }
 
 /* ---- Skeleton shimmer placeholder ---- */
 .message--skeleton .message-bubble {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, #201f1f 25%, #2a2929 50%, #201f1f 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease infinite;
   color: transparent; min-width: 160px; min-height: 1em;
 }
 @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
-@media (prefers-color-scheme: dark) {
-  .message--skeleton .message-bubble {
-    background: linear-gradient(90deg, #2f2f2f 25%, #3a3a3a 50%, #2f2f2f 75%);
-    background-size: 200% 100%;
-  }
-}
-
-/* ---- Cancel button ---- */
-.cancel-btn { background: #f0f0f0; color: #606060; }
-.cancel-btn:hover { background: #e0e0e0; }
-@media (prefers-color-scheme: dark) {
-  .cancel-btn { background: #3f3f3f; color: #aaa; }
-  .cancel-btn:hover { background: #4f4f4f; }
-}
-
-/* ---- API key required banner ---- */
-.key-banner {
-  padding: 10px 16px; background: #fef2f2; color: #dc2626;
-  border-bottom: 1px solid #fca5a5; font-size: 13px;
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-}
-@media (prefers-color-scheme: dark) {
-  .key-banner { background: #2a1010; color: #f87171; border-bottom-color: #7f1d1d; }
-}
-.key-banner-link {
-  margin-left: auto; padding: 3px 10px; background: transparent;
-  border: 1px solid currentColor; border-radius: 4px; cursor: pointer;
-  font-size: 12px; color: inherit; flex-shrink: 0; font-family: inherit;
-}
-.key-banner-link:hover { background: rgba(220,38,38,.08); }
-
-/* ---- Toast banner ---- */
-.toast {
-  padding: 10px 16px; font-size: 13px;
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-  /* default: warn — yellow */
-  background: #fff3cd; color: #664d03; border-bottom: 1px solid #ffda6a;
-}
-.toast--warn { background: #fff3cd; color: #664d03; border-bottom-color: #ffda6a; }
-.toast--error { background: #fef2f2; color: #dc2626; border-bottom-color: #fca5a5; }
-.toast--info  { background: #eff6ff; color: #1d4ed8; border-bottom-color: #93c5fd; }
-@media (prefers-color-scheme: dark) {
-  .toast, .toast--warn { background: #2a1f00; color: #ffd966; border-bottom-color: #664d03; }
-  .toast--error { background: #2a1010; color: #f87171; border-bottom-color: #7f1d1d; }
-  .toast--info  { background: #0d1a33; color: #93c5fd; border-bottom-color: #1e3a5f; }
-}
-.toast-action {
-  margin-left: auto; padding: 3px 10px; background: transparent;
-  border: 1px solid currentColor; border-radius: 4px; cursor: pointer;
-  font-size: 12px; color: inherit; flex-shrink: 0; font-family: inherit;
-}
-.toast-action:hover { background: rgba(0,0,0,.08); }
 
 /* ---- Empty state cards ---- */
 .empty-state {
@@ -272,38 +244,44 @@ button:disabled { opacity: .4; cursor: default; }
   text-align: center; padding: 40px 24px 24px; gap: 8px;
 }
 .empty-state-icon { font-size: 36px; line-height: 1; }
-.empty-state-heading { font-weight: 600; font-size: 14px; color: #0f0f0f; margin: 0; }
-.empty-state-body { font-size: 13px; color: #606060; line-height: 1.5; margin: 0; max-width: 240px; }
+.empty-state-heading { font-weight: 600; font-size: 14px; color: #f0f0f0; margin: 0; }
+.empty-state-body { font-size: 13px; color: #777; line-height: 1.5; margin: 0; max-width: 240px; }
 .empty-state-action {
-  margin-top: 6px; padding: 6px 16px;
-  background: #cc0000; color: #fff; border-radius: 6px;
+  margin-top: 6px; padding: 7px 18px;
+  background: #2295ed; color: #fff; border-radius: 8px;
   font-size: 13px; cursor: pointer; border: none; font-family: inherit;
+  transition: background .15s;
 }
-.empty-state-action:hover { background: #aa0000; }
-@media (prefers-color-scheme: dark) {
-  .empty-state-heading { color: #e8e8e8; }
-  .empty-state-body { color: #aaa; }
-}
+.empty-state-action:hover { background: #1a7fd0; }
 `
 
 function buildTemplate() {
   return `
-    <button class="toggle-btn" aria-label="Toggle Q&A sidebar" title="ClipConvo" data-testid="sidebar-toggle">💬</button>
+    <button class="toggle-btn" aria-label="Toggle ClipConvo" title="ClipConvo" data-testid="sidebar-toggle">💬</button>
     <aside class="sidebar" role="complementary" aria-label="ClipConvo Chat" data-testid="sidebar-panel">
       <header class="sidebar-header">
-        <span class="sidebar-title">ClipConvo</span>
-        <button class="close-btn" aria-label="Close sidebar" data-testid="close-btn">✕</button>
+        <span class="sidebar-title"><span class="sidebar-title-spark">✦</span> ClipConvo</span>
+        <div class="header-actions">
+          <button class="header-icon-btn history-btn" aria-label="History" title="History">🕐</button>
+          <button class="header-icon-btn settings-btn" aria-label="Settings" title="Settings">⚙</button>
+          <button class="close-btn" aria-label="Close sidebar" data-testid="close-btn">✕</button>
+        </div>
       </header>
       <div class="key-banner" hidden role="alert" data-testid="key-banner">
-        <span>An API key is required to ask questions.</span>
+        <span>🔑 An API key is required to use ClipConvo.</span>
         <button class="key-banner-link">Configure →</button>
       </div>
       <div class="toast" hidden role="alert" data-testid="toast"></div>
       <div class="message-list" role="log" aria-live="polite" aria-label="Chat messages" data-testid="message-list"></div>
       <footer class="sidebar-footer">
+        <div class="quick-chips" aria-label="Quick actions">
+          <button class="chip" data-chip="summarize">📄 Summarize</button>
+          <button class="chip" data-chip="takeaways">🔑 Key Takeaways</button>
+          <button class="chip" data-chip="quiz">📱 Quiz Me</button>
+        </div>
         <textarea
           class="input"
-          placeholder="Ask a question about this video…"
+          placeholder="Ask about this video…"
           rows="1"
           aria-label="Question"
           data-testid="question-input"
@@ -311,7 +289,7 @@ function buildTemplate() {
         <div class="action-row">
           <button class="cancel-btn" hidden aria-label="Cancel" data-testid="cancel-btn">Cancel</button>
           <button class="clear-btn" aria-label="Clear conversation" data-testid="clear-btn">Clear</button>
-          <button class="send-btn" disabled aria-label="Send question" data-testid="send-btn">Send</button>
+          <button class="send-btn" disabled aria-label="Send question" data-testid="send-btn">Send ▶</button>
         </div>
       </footer>
     </aside>
@@ -359,6 +337,8 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   const toastEl = $('.toast')
   const keyBannerEl = $('.key-banner')
   const keyBannerLink = $('.key-banner-link')
+  const historyBtn = $('.history-btn')
+  const settingsBtn = $('.settings-btn')
 
   let _open = false
   let _toastTimer = null
@@ -761,6 +741,26 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
     if (_onCancel) _onCancel()
   })
   keyBannerLink.addEventListener('click', () => onOpenOptions?.())
+  historyBtn.addEventListener('click', () => onOpenOptions?.())
+  settingsBtn.addEventListener('click', () => onOpenOptions?.())
+
+  // Quick action chips — populate textarea and send
+  const _CHIP_QUESTIONS = {
+    summarize: 'Please summarize the key points of this video.',
+    takeaways: 'What are the key takeaways from this video?',
+    quiz: 'Create a short quiz to test my understanding of this video.',
+  }
+  shadow.querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      if (_loading || _keyRequired) return
+      const q = _CHIP_QUESTIONS[chip.dataset.chip]
+      if (!q) return
+      textarea.value = q
+      autoGrow()
+      updateSendBtn()
+      handleSend()
+    })
+  })
 
   clearBtn.addEventListener('click', () => {
     if (!_clearPending) {
