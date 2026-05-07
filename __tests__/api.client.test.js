@@ -151,12 +151,13 @@ const SOURCES = [
 const ASK_BACKEND_RESPONSE = { answer: 'The answer is 42.', sources: SOURCES }
 
 describe('ask()', () => {
-  it('calls POST /chat/{videoId}', async () => {
+  it('calls POST /query with video_id in the body', async () => {
     vi.stubGlobal('fetch', mockFetch(ASK_BACKEND_RESPONSE))
     await apiClient.ask('vid1', 'What is the answer?')
     const [url, opts] = fetch.mock.calls[0]
-    expect(url).toBe(`${API_BASE}/chat/vid1`)
+    expect(url).toBe(`${API_BASE}/query`)
     expect(opts.method).toBe('POST')
+    expect(JSON.parse(opts.body).video_id).toBe('vid1')
   })
 
   it('sends question in the request body', async () => {
