@@ -32,9 +32,10 @@ async function checkBackendStatus() {
       if (backendStatusEl) {
         backendStatusEl.textContent = hasKey
           ? '✓ Backend is running and has an API key configured'
-          : '⚠ Backend is running but no API key is set'
+          : '⚠ Backend is running but no API key is set — enter one below'
         backendStatusEl.className = hasKey ? 'status-ok' : 'status-warning'
       }
+      if (!hasKey && input) input.focus()
       return true
     }
   } catch (err) {
