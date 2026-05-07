@@ -204,44 +204,6 @@ const apiClient = {
     }
   },
 
-  /**
-   * Store an OpenAI API key on the server.
-   *
-   * @param {string} key
-   * @returns {Promise<void>}
-   * @throws {BackendUnreachableError}
-   * @throws {ApiError}
-   */
-  async setApiKey(key) {
-    await _request('/config/api-key', {
-      method: 'PUT',
-      body: JSON.stringify({ api_key: key }),
-    })
-  },
-
-  /**
-   * Remove the stored OpenAI API key from the server.
-   * Stub — endpoint not yet implemented on the backend.
-   *
-   * @returns {Promise<void>}
-   * @throws {BackendUnreachableError}
-   * @throws {ApiError}
-   */
-  async clearApiKey() {
-    await _request('/config/api-key', { method: 'DELETE' })
-  },
-
-  /**
-   * Fetch server configuration status.
-   * Stub — endpoint not yet implemented on the backend.
-   *
-   * @returns {Promise<import('./types.js').StatusResponse>}
-   * @throws {BackendUnreachableError}
-   * @throws {ApiError}
-   */
-  async getStatus() {
-    return _request('/config/status')
-  },
 }
 
 export default apiClient

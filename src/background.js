@@ -7,13 +7,10 @@
  *
  * Message types
  * ─────────────
- *   VIDEO_CHANGED  { videoId }         → pingHealth (sanity check on tab change)
- *   INGEST_VIDEO   { videoId, force? } → apiClient.ingest
- *   ASK_QUESTION   { videoId, question, k? } → apiClient.ask
- *   GET_STATUS     {}                  → apiClient.getStatus
- *   SET_API_KEY    { key }             → apiClient.setApiKey
- *   CLEAR_API_KEY  {}                  → apiClient.clearApiKey
- *   GET_CURRENT_VIDEO {}                  → current tracked video ID
+ *   VIDEO_CHANGED     { videoId }            → pingHealth (sanity check on tab change)
+ *   INGEST_VIDEO      { videoId, force? }    → apiClient.ingest
+ *   ASK_QUESTION      { videoId, question, k? } → apiClient.ask
+ *   GET_CURRENT_VIDEO {}                     → current tracked video ID
  */
 
 import apiClient from './api/client.js'
@@ -55,20 +52,6 @@ async function handleAskQuestion({ videoId, question, history = [], k }) {
   return apiClient.ask(videoId, question, history, opts)
 }
 
-async function handleGetStatus() {
-  return apiClient.getStatus()
-}
-
-async function handleSetApiKey({ key }) {
-  await apiClient.setApiKey(key)
-  return {}
-}
-
-async function handleClearApiKey() {
-  await apiClient.clearApiKey()
-  return {}
-}
-
 async function handleGetCurrentVideo() {
   if (currentVideoId) return { videoId: currentVideoId }
   const { currentVideoId: stored } = await chrome.storage.session.get('currentVideoId')
@@ -107,9 +90,6 @@ const HANDLERS = {
   ASK_QUESTION: handleAskQuestion,
   PING_HEALTH: handlePingHealth,
   CHECK_TRANSCRIPT: handleCheckTranscript,
-  GET_STATUS: handleGetStatus,
-  SET_API_KEY: handleSetApiKey,
-  CLEAR_API_KEY: handleClearApiKey,
   GET_CURRENT_VIDEO: handleGetCurrentVideo,
 }
 

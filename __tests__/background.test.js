@@ -35,9 +35,6 @@ vi.mock('../src/api/client.js', () => ({
     pingHealth: vi.fn(),
     ingest: vi.fn(),
     ask: vi.fn(),
-    getStatus: vi.fn(),
-    setApiKey: vi.fn(),
-    clearApiKey: vi.fn(),
   },
 }))
 
@@ -187,33 +184,6 @@ describe('ASK_QUESTION', () => {
 })
 
 // ---------------------------------------------------------------------------
-// GET_STATUS
-// ---------------------------------------------------------------------------
-
-describe('GET_STATUS', () => {
-  it('calls apiClient.getStatus', async () => {
-    apiClient.getStatus.mockResolvedValue({ has_api_key: true })
-    await dispatch({ type: 'GET_STATUS' })
-    expect(apiClient.getStatus).toHaveBeenCalledOnce()
-  })
-
-  it('returns ok: true with status data', async () => {
-    const status = { has_api_key: false }
-    apiClient.getStatus.mockResolvedValue(status)
-    const res = await dispatch({ type: 'GET_STATUS' })
-    expect(res).toEqual({ ok: true, data: status })
-  })
-
-  it('returns ok: false on error', async () => {
-    const err = Object.assign(new Error('unreachable'), { code: 'BACKEND_UNREACHABLE' })
-    apiClient.getStatus.mockRejectedValue(err)
-    const res = await dispatch({ type: 'GET_STATUS' })
-    expect(res.ok).toBe(false)
-    expect(res.error.code).toBe('BACKEND_UNREACHABLE')
-  })
-})
-
-// ---------------------------------------------------------------------------
 // PING_HEALTH
 // ---------------------------------------------------------------------------
 
@@ -269,15 +239,15 @@ describe('unknown message type', () => {
 
 describe('error serialisation', () => {
   it('falls back to UNKNOWN code when error has no code', async () => {
-    apiClient.getStatus.mockRejectedValue(new Error('something broke'))
-    const res = await dispatch({ type: 'GET_STATUS' })
+    apiClient.pingHealth.mockRejectedValue(new Error('something broke'))
+    const res = await dispatch({ type: 'PING_HEALTH' })
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('UNKNOWN')
   })
 
   it('includes the error message in the response', async () => {
-    apiClient.getStatus.mockRejectedValue(new Error('boom'))
-    const res = await dispatch({ type: 'GET_STATUS' })
+    apiClient.pingHealth.mockRejectedValue(new Error('boom'))
+    const res = await dispatch({ type: 'PING_HEALTH' })
     expect(res.error.message).toBe('boom')
   })
 })
