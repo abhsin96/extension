@@ -173,19 +173,6 @@ button:disabled { opacity: .35; cursor: default; }
 .cancel-btn { background: rgba(255,255,255,.06); color: #888; border: 1px solid rgba(255,255,255,.08); }
 .cancel-btn:hover { background: rgba(255,255,255,.1); color: #bbb; }
 
-/* ---- API key required banner ---- */
-.key-banner {
-  padding: 10px 16px; background: rgba(255,85,64,.1); color: #ff9b8e;
-  border-bottom: 1px solid rgba(255,85,64,.18); font-size: 13px;
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-}
-.key-banner-link {
-  margin-left: auto; padding: 3px 10px; background: transparent;
-  border: 1px solid rgba(255,85,64,.4); border-radius: 6px; cursor: pointer;
-  font-size: 12px; color: #ff9b8e; flex-shrink: 0; font-family: inherit;
-  transition: background .15s;
-}
-.key-banner-link:hover { background: rgba(255,85,64,.12); }
 
 /* ---- Toast banner ---- */
 .toast {
@@ -267,10 +254,7 @@ function buildTemplate() {
           <button class="close-btn" aria-label="Close sidebar" data-testid="close-btn">✕</button>
         </div>
       </header>
-      <div class="key-banner" hidden role="alert" data-testid="key-banner">
-        <span>🔑 An API key is required to use ClipConvo.</span>
-        <button class="key-banner-link">Configure →</button>
-      </div>
+
       <div class="toast" hidden role="alert" data-testid="toast"></div>
       <div class="message-list" role="log" aria-live="polite" aria-label="Chat messages" data-testid="message-list"></div>
       <footer class="sidebar-footer">
@@ -335,8 +319,6 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   const clearBtn = $('.clear-btn')
   const cancelBtn = $('.cancel-btn')
   const toastEl = $('.toast')
-  const keyBannerEl = $('.key-banner')
-  const keyBannerLink = $('.key-banner-link')
   const historyBtn = $('.history-btn')
   const settingsBtn = $('.settings-btn')
 
@@ -704,8 +686,6 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   // -- API key required gate --
   function setApiKeyRequired(required) {
     _keyRequired = !!required
-    keyBannerEl.hidden = !_keyRequired
-    textarea.disabled = _keyRequired
     updateSendBtn()
   }
 
@@ -740,7 +720,6 @@ export function createSidebar({ onSend, onClose, onClear, onSeek, onOpenOptions 
   cancelBtn.addEventListener('click', () => {
     if (_onCancel) _onCancel()
   })
-  keyBannerLink.addEventListener('click', () => onOpenOptions?.())
   historyBtn.addEventListener('click', () => onOpenOptions?.())
   settingsBtn.addEventListener('click', () => onOpenOptions?.())
 
