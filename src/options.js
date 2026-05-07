@@ -1,13 +1,19 @@
 /**
- * Options page script — API key management.
+ * Options page script — API key and backend URL management.
  * Sends INGEST-adjacent config messages to the background service worker.
  */
+
+import { DEFAULT_API_BASE } from './api/client.js'
 
 const input = document.getElementById('input-apikey')
 const btnSave = document.getElementById('btn-save')
 const btnClear = document.getElementById('btn-clear')
 const statusEl = document.getElementById('status-msg')
 const backendStatusEl = document.getElementById('backend-status')
+
+const inputUrl = document.getElementById('input-backend-url')
+const btnSaveUrl = document.getElementById('btn-save-url')
+const statusUrlEl = document.getElementById('status-url')
 
 function showMsg(text, isError = false) {
   statusEl.textContent = text
@@ -40,6 +46,11 @@ async function checkBackendStatus() {
     return false
   }
 }
+
+// Load stored backend URL on page load
+chrome?.storage?.sync?.get({ backendUrl: DEFAULT_API_BASE }, ({ backendUrl }) => {
+  if (inputUrl) inputUrl.value = backendUrl
+})
 
 // Check backend status on page load
 checkBackendStatus()
@@ -83,5 +94,28 @@ btnClear?.addEventListener('click', async () => {
     showMsg(err.message ?? 'Failed to remove key.', true)
   } finally {
     btnClear.disabled = false
+  }
+})
+
+btnSaveUrl?.addEventListener('click', async () => {
+  const url = inputUrl?.value.trim()
+  if (!url) {
+    statusUrlEl.textContent = 'Please enter a URL.'
+    statusUrlEl.className = 'error'
+    return
+  }
+
+  btnSaveUrl.disabled = true
+  statusUrlEl.textContent = ''
+  statusUrlEl.className = ''
+
+  try {
+    await chrome?.storage?.sync?.set({ backendUrl: url })
+    statusUrlEl.textContent = 'Backend URL saved.'
+  } catch (err) {
+    statusUrlEl.textContent = err.message ?? 'Failed to save URL.'
+    statusUrlEl.className = 'error'
+  } finally {
+    btnSaveUrl.disabled = false
   }
 })

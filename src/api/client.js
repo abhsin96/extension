@@ -19,8 +19,41 @@ import {
   VideoNotIngestedError,
 } from './errors.js'
 
-/** @type {string} */
-export const API_BASE = 'http://localhost:8000'
+/** Default backend URL used when nothing is stored in chrome.storage.sync. */
+export const DEFAULT_API_BASE = 'http://localhost:8000'
+
+/** @deprecated Use DEFAULT_API_BASE. Kept for backward compatibility. */
+export const API_BASE = DEFAULT_API_BASE
+
+/** Current base URL — updated from chrome.storage.sync and via _setBaseUrl(). */
+let _baseUrl = DEFAULT_API_BASE
+
+/** Return the active backend base URL. */
+export function getBaseUrl() {
+  return _baseUrl
+}
+
+/**
+ * Override the base URL. Called by the chrome.storage listener in production
+ * and directly in tests.
+ *
+ * @param {string} url
+ */
+export function _setBaseUrl(url) {
+  _baseUrl = url
+}
+
+// Sync with chrome.storage — no-op in non-extension environments (tests, Node).
+if (typeof chrome !== 'undefined' && chrome?.storage?.sync) {
+  chrome.storage.sync.get({ backendUrl: DEFAULT_API_BASE }, ({ backendUrl }) => {
+    _baseUrl = backendUrl
+  })
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && changes.backendUrl) {
+      _baseUrl = changes.backendUrl.newValue
+    }
+  })
+}
 
 // Substring present in the system-prompt refusal message (see prompts/system_prompt.txt).
 const REFUSAL_SENTINEL = "isn't available in the video transcript"
@@ -40,7 +73,7 @@ const REFUSAL_SENTINEL = "isn't available in the video transcript"
 async function _request(path, options = {}) {
   let response
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(`${_baseUrl}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       ...options,
     })

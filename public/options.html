@@ -109,13 +109,15 @@
         border: 1px solid #fca5a5;
       }
 
-      #status-msg {
+      #status-msg,
+      #status-url {
         font-size: 13px;
         margin-top: 8px;
         min-height: 20px;
         color: #16a34a;
       }
-      #status-msg.error {
+      #status-msg.error,
+      #status-url.error {
         color: #dc2626;
       }
 
@@ -184,12 +186,37 @@
       <div id="status-msg"></div>
     </section>
 
+    <section id="section-backend-url">
+      <h2>Backend URL</h2>
+
+      <div class="field">
+        <label for="input-backend-url">Backend URL</label>
+        <input
+          type="text"
+          id="input-backend-url"
+          placeholder="http://localhost:8000"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <span class="help">
+          URL of the local FastAPI server. Change this only if you run the backend on a
+          non-default port or host.
+        </span>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary" id="btn-save-url">Save URL</button>
+      </div>
+
+      <div id="status-url"></div>
+    </section>
+
     <section id="section-about">
       <h2>About</h2>
       <div class="note">
-        YouTube Q&amp;A runs a local FastAPI backend at
-        <code>localhost:8000</code>. The extension sends video IDs and your questions to that server
-        — nothing is sent to external services except through your own OpenAI key.
+        YouTube Q&amp;A runs a local FastAPI backend (default:
+        <code>localhost:8000</code>). The extension sends video IDs and your questions to that
+        server — nothing is sent to external services except through your own OpenAI key.
       </div>
     </section>
 

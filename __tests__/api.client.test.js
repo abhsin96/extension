@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import apiClient, { API_BASE } from '../src/api/client.js'
+import apiClient, { API_BASE, DEFAULT_API_BASE, _setBaseUrl, getBaseUrl } from '../src/api/client.js'
 import {
   ApiError,
   BackendUnreachableError,
@@ -335,5 +335,50 @@ describe('Content-Type header', () => {
     vi.stubGlobal('fetch', mockFetch(ASK_BACKEND_RESPONSE))
     await apiClient.ask('vid1', 'q?')
     expect(lastCallHeaders()['Content-Type']).toBe('application/json')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Configurable base URL
+// ---------------------------------------------------------------------------
+
+describe('configurable base URL', () => {
+  afterEach(() => {
+    _setBaseUrl(DEFAULT_API_BASE)
+  })
+
+  it('API_BASE equals DEFAULT_API_BASE', () => {
+    expect(API_BASE).toBe(DEFAULT_API_BASE)
+  })
+
+  it('getBaseUrl() returns DEFAULT_API_BASE by default', () => {
+    expect(getBaseUrl()).toBe(DEFAULT_API_BASE)
+  })
+
+  it('_setBaseUrl() updates getBaseUrl()', () => {
+    _setBaseUrl('http://custom:9000')
+    expect(getBaseUrl()).toBe('http://custom:9000')
+  })
+
+  it('requests use the updated base URL', async () => {
+    _setBaseUrl('http://custom:9000')
+    vi.stubGlobal('fetch', mockFetch({ status: 'ok' }))
+    await apiClient.pingHealth()
+    expect(fetch.mock.calls[0][0]).toBe('http://custom:9000/health')
+  })
+
+  it('resets to DEFAULT_API_BASE after _setBaseUrl(DEFAULT_API_BASE)', async () => {
+    _setBaseUrl('http://custom:9000')
+    _setBaseUrl(DEFAULT_API_BASE)
+    vi.stubGlobal('fetch', mockFetch({ status: 'ok' }))
+    await apiClient.pingHealth()
+    expect(fetch.mock.calls[0][0]).toBe(`${DEFAULT_API_BASE}/health`)
+  })
+
+  it('custom URL is used for POST requests', async () => {
+    _setBaseUrl('http://custom:9000')
+    vi.stubGlobal('fetch', mockFetch(INGEST_RESPONSE))
+    await apiClient.ingest('vid1')
+    expect(fetch.mock.calls[0][0]).toBe('http://custom:9000/ingest')
   })
 })
