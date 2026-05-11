@@ -20,10 +20,20 @@ function makePingResponse() {
   return { ok: true, data: { status: 'ok' } }
 }
 
+function makeChromeMock(sendMessage) {
+  return {
+    runtime: { sendMessage },
+    storage: {
+      sync: { get: vi.fn((_defaults, cb) => cb({})), set: vi.fn().mockResolvedValue(undefined) },
+      onChanged: { addListener: vi.fn() },
+    },
+  }
+}
+
 async function loadOptions(pingResponse = makePingResponse()) {
   vi.resetModules()
   sendMessage = vi.fn().mockResolvedValue(pingResponse)
-  vi.stubGlobal('chrome', { runtime: { sendMessage } })
+  vi.stubGlobal('chrome', makeChromeMock(sendMessage))
   document.body.innerHTML = OPTIONS_HTML
   await import('../src/options.js')
   // Let the initial checkBackendStatus() promise settle
@@ -48,7 +58,7 @@ describe('status badge on load', () => {
   it('shows error style when backend is unreachable', async () => {
     vi.resetModules()
     sendMessage = vi.fn().mockRejectedValue(new Error('network'))
-    vi.stubGlobal('chrome', { runtime: { sendMessage } })
+    vi.stubGlobal('chrome', makeChromeMock(sendMessage))
     document.body.innerHTML = OPTIONS_HTML
     await import('../src/options.js')
     await new Promise((r) => setTimeout(r, 0))
