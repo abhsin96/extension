@@ -45,9 +45,9 @@ describe('structure', () => {
     expect(q('.sidebar')).toBeTruthy()
   })
 
-  it('renders empty message list', () => {
+  it('renders message list with initial welcome card', () => {
     expect(q('.message-list')).toBeTruthy()
-    expect(q('.message-list').children.length).toBe(0)
+    expect(q('.welcome-card')).toBeTruthy()
   })
 
   it('renders textarea and send button', () => {
@@ -252,7 +252,7 @@ describe('clear button confirmation', () => {
 
   it('first click changes button text to "Sure?"', () => {
     q('.clear-btn').click()
-    expect(q('.clear-btn').textContent).toBe('Sure?')
+    expect(q('.clear-btn-label').textContent).toBe('Sure?')
   })
 
   it('first click does NOT clear messages', () => {
@@ -274,15 +274,15 @@ describe('clear button confirmation', () => {
   it('second click resets button text to "Clear"', () => {
     q('.clear-btn').click()
     q('.clear-btn').click()
-    expect(q('.clear-btn').textContent).toBe('Clear')
+    expect(q('.clear-btn-label').textContent).toBe('Clear')
   })
 
   it('confirmation state resets after timeout', async () => {
     vi.useFakeTimers()
     q('.clear-btn').click()
-    expect(q('.clear-btn').textContent).toBe('Sure?')
+    expect(q('.clear-btn-label').textContent).toBe('Sure?')
     vi.advanceTimersByTime(3001)
-    expect(q('.clear-btn').textContent).toBe('Clear')
+    expect(q('.clear-btn-label').textContent).toBe('Clear')
     expect(q('.message-list').children.length).toBe(2) // not cleared
     vi.useRealTimers()
   })
@@ -290,9 +290,9 @@ describe('clear button confirmation', () => {
   it('close() resets pending confirmation', () => {
     api.open()
     q('.clear-btn').click()
-    expect(q('.clear-btn').textContent).toBe('Sure?')
+    expect(q('.clear-btn-label').textContent).toBe('Sure?')
     api.close()
-    expect(q('.clear-btn').textContent).toBe('Clear')
+    expect(q('.clear-btn-label').textContent).toBe('Clear')
     expect(q('.clear-btn').classList.contains('clear-btn--confirm')).toBe(false)
   })
 })

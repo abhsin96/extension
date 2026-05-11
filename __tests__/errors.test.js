@@ -236,7 +236,7 @@ import { afterEach, beforeEach, vi } from 'vitest'
 import apiClient from '../src/api/client.js'
 
 function mockFetch(body, { ok = true, status = 200 } = {}) {
-  return vi.fn().mockResolvedValue({ ok, status, json: vi.fn().mockResolvedValue(body) })
+  return vi.fn().mockResolvedValue({ ok, status, headers: { get: vi.fn(() => null) }, json: vi.fn().mockResolvedValue(body) })
 }
 
 beforeEach(() => vi.stubGlobal('fetch', mockFetch({ status: 'ok' })))

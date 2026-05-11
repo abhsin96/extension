@@ -16,6 +16,7 @@ function mockFetch(body, { ok = true, status = 200 } = {}) {
   return vi.fn().mockResolvedValue({
     ok,
     status,
+    headers: { get: vi.fn(() => null) },
     json: vi.fn().mockResolvedValue(body),
   })
 }
