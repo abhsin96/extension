@@ -76,6 +76,9 @@ async function _request(path: string, options: RequestInit = {}): Promise<unknow
     throw new BackendUnreachableError(cause)
   }
 
+  const requestId = response.headers.get('X-Request-ID')
+  if (requestId) console.debug('[api] X-Request-ID:', requestId)
+
   if (!response.ok) {
     let detail = `HTTP ${response.status}`
     try {
@@ -170,6 +173,9 @@ const apiClient = {
     } catch (cause) {
       throw new BackendUnreachableError(cause)
     }
+
+    const streamRequestId = response.headers.get('X-Request-ID')
+    if (streamRequestId) console.debug('[api] X-Request-ID:', streamRequestId)
 
     if (!response.ok) {
       let detail = `HTTP ${response.status}`
