@@ -19,16 +19,14 @@
  * Use the subclasses below; only fall back to ApiError for unclassified HTTP errors.
  */
 export class ApiError extends Error {
-  /**
-   * @param {string} message  User-facing description
-   * @param {number} status   HTTP status code
-   * @param {string} [code]   Machine-readable error code (defaults to 'API_ERROR')
-   */
-  constructor(message, status, code = 'API_ERROR') {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.code = code
+  status: number;
+  code: string;
+
+  constructor(message: string, status: number, code = 'API_ERROR') {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
   }
 }
 
@@ -41,12 +39,13 @@ export class ApiError extends Error {
  * Typical causes: server not running, wrong port, CORS preflight failure.
  */
 export class BackendUnreachableError extends Error {
-  /** @param {unknown} [cause]  Original TypeError from fetch */
-  constructor(cause) {
-    super('Cannot reach the backend — is the server running on localhost:8000?')
-    this.name = 'BackendUnreachableError'
-    this.code = 'BACKEND_UNREACHABLE'
-    this.cause = cause
+  readonly code = 'BACKEND_UNREACHABLE';
+  cause: unknown;
+
+  constructor(cause?: unknown) {
+    super('Cannot reach the backend — is the server running on localhost:8000?');
+    this.name = 'BackendUnreachableError';
+    this.cause = cause;
   }
 }
 
@@ -54,18 +53,15 @@ export class BackendUnreachableError extends Error {
 // Authentication / authorisation errors
 // ---------------------------------------------------------------------------
 
-/**
- * The OpenAI API key is missing, empty, or rejected by the backend (HTTP 401 / 403).
- */
+/** The OpenAI API key is missing, empty, or rejected by the backend (HTTP 401 / 403). */
 export class ApiKeyMissingError extends ApiError {
-  /** @param {string} [detail]  Server-provided detail, if any */
-  constructor(detail) {
+  constructor(detail?: string) {
     super(
       detail ?? 'An OpenAI API key is required — add one in the extension options.',
       401,
       'API_KEY_MISSING',
-    )
-    this.name = 'ApiKeyMissingError'
+    );
+    this.name = 'ApiKeyMissingError';
   }
 }
 
@@ -73,14 +69,11 @@ export class ApiKeyMissingError extends ApiError {
 // Ingestion-specific errors
 // ---------------------------------------------------------------------------
 
-/**
- * The YouTube video does not have a transcript available (HTTP 502 from the ingest pipeline).
- */
+/** The YouTube video does not have a transcript available (HTTP 502 from the ingest pipeline). */
 export class TranscriptDisabledError extends ApiError {
-  /** @param {string} [detail]  Server-provided detail, if any */
-  constructor(detail) {
-    super(detail ?? 'This video does not have a transcript available.', 502, 'TRANSCRIPT_DISABLED')
-    this.name = 'TranscriptDisabledError'
+  constructor(detail?: string) {
+    super(detail ?? 'This video does not have a transcript available.', 502, 'TRANSCRIPT_DISABLED');
+    this.name = 'TranscriptDisabledError';
   }
 }
 
@@ -93,15 +86,16 @@ export class TranscriptDisabledError extends ApiError {
  * Callers should prompt the user to trigger ingest() before asking questions.
  */
 export class VideoNotIngestedError extends ApiError {
-  /** @param {string} videoId */
-  constructor(videoId) {
+  videoId: string;
+
+  constructor(videoId: string) {
     super(
       `This video hasn't been analysed yet — click "Analyse" to get started.`,
       404,
       'VIDEO_NOT_INGESTED',
-    )
-    this.name = 'VideoNotIngestedError'
-    this.videoId = videoId
+    );
+    this.name = 'VideoNotIngestedError';
+    this.videoId = videoId;
   }
 }
 
@@ -109,19 +103,15 @@ export class VideoNotIngestedError extends ApiError {
 // Rate limiting
 // ---------------------------------------------------------------------------
 
-/**
- * The OpenAI API is rate-limiting the backend (HTTP 429).
- * The UI should advise the user to wait before retrying.
- */
+/** The OpenAI API is rate-limiting the backend (HTTP 429). */
 export class RateLimitedError extends ApiError {
-  /** @param {string} [detail] */
-  constructor(detail) {
+  constructor(detail?: string) {
     super(
       detail ?? 'The AI service is busy — please wait a moment and try again.',
       429,
       'RATE_LIMITED',
-    )
-    this.name = 'RateLimitedError'
+    );
+    this.name = 'RateLimitedError';
   }
 }
 
@@ -134,12 +124,13 @@ export class RateLimitedError extends ApiError {
  * Carries the original error as `cause` so it can be logged / reported.
  */
 export class UnknownError extends Error {
-  /** @param {unknown} [cause] */
-  constructor(cause) {
-    const message = cause instanceof Error ? cause.message : 'An unexpected error occurred.'
-    super(message)
-    this.name = 'UnknownError'
-    this.code = 'UNKNOWN'
-    this.cause = cause
+  readonly code = 'UNKNOWN';
+  cause: unknown;
+
+  constructor(cause?: unknown) {
+    const message = cause instanceof Error ? cause.message : 'An unexpected error occurred.';
+    super(message);
+    this.name = 'UnknownError';
+    this.cause = cause;
   }
 }

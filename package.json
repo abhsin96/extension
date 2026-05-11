@@ -4,6 +4,7 @@
   "description": "YouTube video Q&A Chrome Extension",
   "type": "module",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/ __tests__/",
@@ -20,16 +21,16 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "src/**/*.js": [
-      "eslint --fix",
+    "src/**/*.{js,ts}": [
       "prettier --write"
     ],
-    "__tests__/**/*.js": [
+    "__tests__/**/*.{js,ts}": [
       "prettier --write"
     ]
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
+    "@types/chrome": "^0.1.42",
     "@vitest/coverage-v8": "^2.0.0",
     "esbuild": "^0.23.0",
     "eslint": "^9.0.0",
@@ -38,6 +39,7 @@
     "jsdom": "^24.0.0",
     "lint-staged": "^15.0.0",
     "prettier": "^3.0.0",
+    "typescript": "^6.0.3",
     "vitest": "^2.0.0",
     "web-ext": "^8.0.0"
   }

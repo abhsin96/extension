@@ -18,6 +18,7 @@ import {
   TranscriptDisabledError,
   VideoNotIngestedError,
 } from './errors.js'
+import type { AskResponse, Citation, HealthResponse, IngestResponse } from './types.js'
 
 /** Default backend URL used when nothing is stored in chrome.storage.sync. */
 export const DEFAULT_API_BASE = 'http://localhost:8000'
@@ -29,28 +30,26 @@ export const API_BASE = DEFAULT_API_BASE
 let _baseUrl = DEFAULT_API_BASE
 
 /** Return the active backend base URL. */
-export function getBaseUrl() {
+export function getBaseUrl(): string {
   return _baseUrl
 }
 
 /**
  * Override the base URL. Called by the chrome.storage listener in production
  * and directly in tests.
- *
- * @param {string} url
  */
-export function _setBaseUrl(url) {
+export function _setBaseUrl(url: string): void {
   _baseUrl = url
 }
 
 // Sync with chrome.storage — no-op in non-extension environments (tests, Node).
 if (typeof chrome !== 'undefined' && chrome?.storage?.sync) {
   chrome.storage.sync.get({ backendUrl: DEFAULT_API_BASE }, ({ backendUrl }) => {
-    _baseUrl = backendUrl
+    _baseUrl = backendUrl as string
   })
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'sync' && changes.backendUrl) {
-      _baseUrl = changes.backendUrl.newValue
+      _baseUrl = changes.backendUrl.newValue as string
     }
   })
 }
@@ -65,13 +64,9 @@ const REFUSAL_SENTINEL = "isn't available in the video transcript"
 /**
  * Low-level fetch wrapper.
  * Throws BackendUnreachableError on network failure, ApiError on non-2xx.
- *
- * @param {string} path
- * @param {RequestInit} [options]
- * @returns {Promise<unknown>}
  */
-async function _request(path, options = {}) {
-  let response
+async function _request(path: string, options: RequestInit = {}): Promise<unknown> {
+  let response: Response
   try {
     response = await fetch(`${_baseUrl}${path}`, {
       headers: { 'Content-Type': 'application/json' },
@@ -84,7 +79,7 @@ async function _request(path, options = {}) {
   if (!response.ok) {
     let detail = `HTTP ${response.status}`
     try {
-      const body = await response.json()
+      const body = (await response.json()) as { detail?: string }
       if (body.detail) detail = body.detail
     } catch {
       // JSON parse failure — keep the status-code fallback
@@ -103,6 +98,16 @@ async function _request(path, options = {}) {
   return response.json()
 }
 
+// Raw shape of the /query response before it is normalised to AskResponse.
+interface RawQueryResponse {
+  answer: string;
+  refused?: boolean;
+  citations?: Citation[];
+  sources?: Citation[];
+  tokens_used?: number;
+  thread_id?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -110,30 +115,24 @@ async function _request(path, options = {}) {
 const apiClient = {
   /**
    * Check that the backend is alive and configured.
-   *
-   * @returns {Promise<import('./types.js').HealthResponse>}
    * @throws {BackendUnreachableError}
    */
-  async pingHealth() {
-    return _request('/health')
+  async pingHealth(): Promise<HealthResponse> {
+    return _request('/health') as Promise<HealthResponse>
   },
 
   /**
    * Ingest a YouTube video into the vector store.
-   *
-   * @param {string} videoId
-   * @param {{ force?: boolean }} [opts]
-   * @returns {Promise<import('./types.js').IngestResponse>}
    * @throws {TranscriptDisabledError} When the video has no transcript (502)
    * @throws {BackendUnreachableError}
    * @throws {ApiError}
    */
-  async ingest(videoId, { force = false } = {}) {
+  async ingest(videoId: string, { force = false }: { force?: boolean } = {}): Promise<IngestResponse> {
     try {
       return await _request('/ingest', {
         method: 'POST',
         body: JSON.stringify({ video_id: videoId, force }),
-      })
+      }) as Promise<IngestResponse>
     } catch (err) {
       if (err instanceof ApiError && err.status === 502) {
         throw new TranscriptDisabledError(err.message)
@@ -146,27 +145,24 @@ const apiClient = {
    * Ask a question about an ingested video.
    *
    * Maps to POST /query on the backend with unified endpoint.
-   * Supports streaming and advanced mode via flags.
-   * Detects refusals from the model and surfaces them via `refused: true`
-   * rather than as an exception — callers can choose to show the answer text
-   * or prompt the user to re-phrase.
+   * Detects refusals from the model and surfaces them via `refused: true`.
    *
-   * @param {string}   videoId
-   * @param {string}   question
-   * @param {Array}    [history]  - Conversation history for multi-turn support
-   * @param {{ k?: number, stream?: boolean, advanced?: boolean, threadId?: string }} [opts]
-   * @returns {Promise<import('./types.js').AskResponse>}
    * @throws {VideoNotIngestedError} When the video has not been ingested (404)
    * @throws {BackendUnreachableError}
    * @throws {ApiError}
    */
   async ask(
-    videoId,
-    question,
-    history = [],
-    { k = 5, stream = false, advanced = true, threadId = null } = {},
-  ) {
-    let raw
+    videoId: string,
+    question: string,
+    history: unknown[] = [],
+    {
+      k = 5,
+      stream = false,
+      advanced = true,
+      threadId = null as string | null,
+    }: { k?: number; stream?: boolean; advanced?: boolean; threadId?: string | null } = {},
+  ): Promise<AskResponse> {
+    let raw: RawQueryResponse
     try {
       raw = await _request('/query', {
         method: 'POST',
@@ -179,7 +175,7 @@ const apiClient = {
           conversation_history: history,
           thread_id: threadId,
         }),
-      })
+      }) as RawQueryResponse
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         throw new VideoNotIngestedError(videoId)
@@ -203,7 +199,6 @@ const apiClient = {
       thread_id: raw.thread_id,
     }
   },
-
 }
 
 export default apiClient
