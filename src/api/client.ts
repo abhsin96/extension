@@ -172,7 +172,10 @@ const apiClient = {
           k,
           stream,
           advanced,
-          conversation_history: history,
+          // Once the server has issued a thread_id it maintains history
+          // server-side.  Only send the local history on the very first turn
+          // (no thread_id yet) to seed or restore the thread.
+          conversation_history: threadId ? [] : history,
           thread_id: threadId,
         }),
       }) as RawQueryResponse
