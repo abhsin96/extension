@@ -2,13 +2,12 @@
  * E2E test suite for the YouTube Q&A Chrome extension.
  *
  * Prerequisites:
- *   1. npm run build          — produces dist/ from src/
- *   2. No process on port 8000 — the mock backend binds there
+ *   1. npm run build    — produces dist/ from src/
  *
  * Run:  npm run test:e2e
  */
 
-import { test, expect } from './fixtures/extension.js'
+import { test, expect, setExtensionBackendUrl } from './fixtures/extension.js'
 import { startMockBackend, REFUSAL_ANSWER } from './fixtures/mock-backend.js'
 
 // ---------------------------------------------------------------------------
@@ -60,8 +59,9 @@ async function sendQuestion(page, question, { skipWait = false } = {}) {
 test.describe('Happy path', () => {
   let backend
 
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ page }) => {
     backend = await startMockBackend()
+    await setExtensionBackendUrl(page.context(), `http://localhost:${backend.port}`)
   })
 
   test.afterEach(async () => {
@@ -166,8 +166,9 @@ test.describe('Happy path', () => {
 test.describe('Refusal', () => {
   let backend
 
-  test.beforeEach(async () => {
-    backend = await startMockBackend({ chat: { answer: REFUSAL_ANSWER, sources: [] } })
+  test.beforeEach(async ({ page }) => {
+    backend = await startMockBackend({ query: { answer: REFUSAL_ANSWER, sources: [] } })
+    await setExtensionBackendUrl(page.context(), `http://localhost:${backend.port}`)
   })
 
   test.afterEach(async () => {
@@ -212,6 +213,7 @@ test.describe('Backend down', () => {
     // Phase 1: backend up — navigate, open sidebar, ask first question to
     // prime the session (caches the ingest so the second question skips ingest).
     const backend = await startMockBackend()
+    await setExtensionBackendUrl(page.context(), `http://localhost:${backend.port}`)
 
     await page.goto(WATCH_URL)
     await openSidebar(page)

@@ -4,6 +4,12 @@
  * Each test gets a fresh browser context (independent extension state).
  * YouTube watch page requests are intercepted and served from a local stub
  * so tests don't depend on network access to youtube.com.
+ *
+ * The context fixture initialises chrome.storage.sync with a non-existent
+ * backend URL so tests that do NOT start a mock backend naturally see a
+ * "backend down" state.  Tests that need a working backend should call
+ * setExtensionBackendUrl(page.context(), `http://localhost:${backend.port}`)
+ * after starting their mock.
  */
 
 import { test as base, chromium } from '@playwright/test'
@@ -14,6 +20,10 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const EXTENSION_PATH = path.resolve(__dirname, '../../dist')
+
+// Port that is never bound by any service — used as the default backend URL so
+// every health-check fails unless a test explicitly configures a mock backend.
+const NO_BACKEND_URL = 'http://localhost:59876'
 
 // Minimal HTML page that mimics a YouTube watch page.
 // Provides a <video> element (for seek tests), #secondary anchor (for sidebar
@@ -29,6 +39,17 @@ const YOUTUBE_STUB_HTML = `<!DOCTYPE html>
   <video id="yt-player" muted playsinline style="width:1px;height:1px;position:fixed;bottom:0;right:0;"></video>
 </body>
 </html>`
+
+/**
+ * Point the extension's API client at the given URL by writing to
+ * chrome.storage.sync from the extension's service worker context.
+ * The extension's onChanged listener picks up the update immediately.
+ */
+export async function setExtensionBackendUrl(context, url) {
+  let [sw] = context.serviceWorkers()
+  if (!sw) sw = await context.waitForEvent('serviceworker', { timeout: 10_000 })
+  await sw.evaluate((u) => chrome.storage.sync.set({ backendUrl: u }), url)
+}
 
 export const test = base.extend({
   context: async ({}, use) => {
@@ -54,6 +75,10 @@ export const test = base.extend({
     await context.route('https://www.youtube.com/watch*', (route) =>
       route.fulfill({ contentType: 'text/html', body: YOUTUBE_STUB_HTML }),
     )
+
+    // Default to a non-existent backend so tests with no mock naturally see
+    // the "backend down" state without conflicting with any running server.
+    await setExtensionBackendUrl(context, NO_BACKEND_URL)
 
     await use(context)
     await context.close()

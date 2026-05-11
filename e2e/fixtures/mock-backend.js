@@ -1,17 +1,20 @@
 /**
- * Minimal HTTP server that stands in for the Python backend on port 8000.
- * The extension's service worker fetches directly to http://localhost:8000,
- * so we need a real TCP listener — page.route() can't intercept SW fetches.
+ * Minimal HTTP server that stands in for the Python backend.
+ * The extension's service worker fetches directly to the backend URL, so we
+ * need a real TCP listener — page.route() can't intercept SW fetches.
+ *
+ * The server binds to a randomly-assigned port (OS port 0) so it never
+ * conflicts with a running dev backend.  The resolved port is returned so
+ * callers can configure the extension to use it via setExtensionBackendUrl.
  *
  * Usage:
- *   const backend = await startMockBackend()          // default responses
- *   const backend = await startMockBackend({ chat })  // override one handler
+ *   const backend = await startMockBackend()             // default responses
+ *   const backend = await startMockBackend({ query })    // override one handler
  *   await backend.close()
+ *   backend.port   // actual port the server bound to
  */
 
 import http from 'node:http'
-
-const PORT = 8000
 
 export const REFUSAL_ANSWER =
   "I'm sorry, but the answer to your question isn't available in the video transcript."
@@ -19,7 +22,7 @@ export const REFUSAL_ANSWER =
 const DEFAULTS = {
   health: { status: 'ok', has_api_key: true },
   ingest: { status: 'done', chunk_count: 5, cached: false },
-  chat: {
+  query: {
     answer: 'This is a test video about automated testing. The key concept is explained at [0:30].',
     sources: [
       { chunk_id: 'c1', start_ts: 30, end_ts: 60, text: 'Automated testing concepts at 0:30.' },
@@ -58,9 +61,9 @@ export function startMockBackend(overrides = {}) {
     } else if (req.method === 'POST' && url === '/ingest') {
       res.writeHead(200)
       res.end(JSON.stringify(responses.ingest))
-    } else if (req.method === 'POST' && url.startsWith('/chat/')) {
+    } else if (req.method === 'POST' && url === '/query') {
       res.writeHead(200)
-      res.end(JSON.stringify(responses.chat))
+      res.end(JSON.stringify(responses.query))
     } else if ((req.method === 'PUT' || req.method === 'DELETE') && url === '/config/api-key') {
       res.writeHead(204)
       res.end()
@@ -80,19 +83,11 @@ export function startMockBackend(overrides = {}) {
   })
 
   return new Promise((resolve, reject) => {
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        reject(new Error(
-          `Port ${PORT} is already in use.\n` +
-          'Stop any running backend server before running E2E tests:\n' +
-          '  cd backend && make stop  (or kill the process listening on port 8000)'
-        ))
-      } else {
-        reject(err)
-      }
-    })
-    server.listen(PORT, '127.0.0.1', () => {
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address()
       resolve({
+        port,
         close: () => {
           for (const sock of _connections) sock.destroy()
           return new Promise((r, e) => server.close((err) => (err ? e(err) : r())))
