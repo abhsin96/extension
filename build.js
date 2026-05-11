@@ -15,7 +15,7 @@ function cleanDist() {
   }
 }
 
-const entryPoints = ['src/background.js', 'src/content_script.js', 'src/popup.js', 'src/options.js']
+const entryPoints = ['src/background.ts', 'src/content_script.ts', 'src/popup.ts', 'src/options.ts']
 
 const publicFiles = ['public/manifest.json', 'public/popup.html', 'public/options.html']
 
