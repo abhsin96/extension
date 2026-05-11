@@ -123,22 +123,111 @@ const apiClient = {
 
   /**
    * Ingest a YouTube video into the vector store.
+   *
+   * When `stream` is true the request uses SSE.  `onProgress` is called for
+   * each `{"type":"progress"}` frame so the sidebar can update a step label
+   * and progress bar.  The method still resolves with an `IngestResponse` once
+   * the `{"type":"done"}` frame arrives.
+   *
    * @throws {TranscriptDisabledError} When the video has no transcript (502)
    * @throws {BackendUnreachableError}
    * @throws {ApiError}
    */
-  async ingest(videoId: string, { force = false }: { force?: boolean } = {}): Promise<IngestResponse> {
-    try {
-      return await _request('/ingest', {
-        method: 'POST',
-        body: JSON.stringify({ video_id: videoId, force }),
-      }) as Promise<IngestResponse>
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 502) {
-        throw new TranscriptDisabledError(err.message)
+  async ingest(
+    videoId: string,
+    {
+      force = false,
+      stream = false,
+      onProgress,
+    }: {
+      force?: boolean
+      stream?: boolean
+      onProgress?: (step: string, pct: number) => void
+    } = {},
+  ): Promise<IngestResponse> {
+    if (!stream) {
+      try {
+        return (await _request('/ingest', {
+          method: 'POST',
+          body: JSON.stringify({ video_id: videoId, force }),
+        })) as IngestResponse
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 502) {
+          throw new TranscriptDisabledError(err.message)
+        }
+        throw err
       }
-      throw err
     }
+
+    // Streaming path — use fetch directly so we can read the SSE body.
+    let response: Response
+    try {
+      response = await fetch(`${_baseUrl}/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_id: videoId, force, stream: true }),
+      })
+    } catch (cause) {
+      throw new BackendUnreachableError(cause)
+    }
+
+    if (!response.ok) {
+      let detail = `HTTP ${response.status}`
+      try {
+        const body = (await response.json()) as { detail?: string }
+        if (body.detail) detail = body.detail
+      } catch { /* keep status-code fallback */ }
+      const { status } = response
+      if (status === 401 || status === 403) throw new ApiKeyMissingError(detail)
+      if (status === 429) throw new RateLimitedError(detail)
+      if (status === 502) throw new TranscriptDisabledError(detail)
+      throw new ApiError(detail, status)
+    }
+
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split('\n')
+        buffer = lines.pop()! // last entry may be an incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          let event: Record<string, unknown>
+          try {
+            event = JSON.parse(line.slice(6)) as Record<string, unknown>
+          } catch {
+            continue
+          }
+
+          if (event['type'] === 'progress') {
+            onProgress?.(event['step'] as string, event['pct'] as number)
+          } else if (event['type'] === 'done') {
+            return {
+              status: event['status'] as IngestResponse['status'],
+              chunk_count: event['chunk_count'] as number,
+              cached: event['cached'] as boolean,
+            }
+          } else if (event['type'] === 'error') {
+            const message = (event['message'] as string | undefined) ?? 'Ingestion failed'
+            if (String(message).toLowerCase().includes('transcript')) {
+              throw new TranscriptDisabledError(message)
+            }
+            throw new ApiError(message, 502)
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+
+    throw new ApiError('Stream ended without a done event', 500)
   },
 
   /**
