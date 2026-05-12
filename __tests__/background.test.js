@@ -101,8 +101,15 @@ describe('VIDEO_CHANGED', () => {
   it('returns ok: true with videoId, url and health', async () => {
     const health = { status: 'ok', has_api_key: true }
     apiClient.pingHealth.mockResolvedValue(health)
-    const res = await dispatch({ type: 'VIDEO_CHANGED', videoId: 'abc', url: 'https://youtube.com/watch?v=abc' })
-    expect(res).toEqual({ ok: true, data: { videoId: 'abc', url: 'https://youtube.com/watch?v=abc', health } })
+    const res = await dispatch({
+      type: 'VIDEO_CHANGED',
+      videoId: 'abc',
+      url: 'https://youtube.com/watch?v=abc',
+    })
+    expect(res).toEqual({
+      ok: true,
+      data: { videoId: 'abc', url: 'https://youtube.com/watch?v=abc', health },
+    })
   })
 
   it('returns ok: false on apiClient error', async () => {
@@ -154,24 +161,50 @@ describe('INGEST_VIDEO', () => {
 // ---------------------------------------------------------------------------
 
 describe('ASK_QUESTION', () => {
-  const ASK_RESPONSE = { answer: 'The answer is 42.', citations: [], refused: false }
+  const ASK_RESPONSE = {
+    answer: 'The answer is 42.',
+    citations: [],
+    refused: false,
+    thread_id: null,
+  }
 
   it('calls apiClient.ask with videoId and question', async () => {
     apiClient.ask.mockResolvedValue(ASK_RESPONSE)
     await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'What is it?' })
-    expect(apiClient.ask).toHaveBeenCalledWith('vid1', 'What is it?', [], {})
+    expect(apiClient.ask).toHaveBeenCalledWith('vid1', 'What is it?', [], { threadId: null })
   })
 
   it('forwards custom k to apiClient.ask', async () => {
     apiClient.ask.mockResolvedValue(ASK_RESPONSE)
     await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?', k: 3 })
-    expect(apiClient.ask).toHaveBeenCalledWith('vid1', 'q?', [], { k: 3 })
+    expect(apiClient.ask).toHaveBeenCalledWith('vid1', 'q?', [], { k: 3, threadId: null })
   })
 
-  it('returns ok: true with ask data', async () => {
+  it('forwards threadId to apiClient.ask when provided', async () => {
     apiClient.ask.mockResolvedValue(ASK_RESPONSE)
+    await dispatch({
+      type: 'ASK_QUESTION',
+      videoId: 'vid1',
+      question: 'q?',
+      threadId: 'thread-123',
+    })
+    expect(apiClient.ask).toHaveBeenCalledWith('vid1', 'q?', [], { threadId: 'thread-123' })
+  })
+
+  it('returns ok: true with ask data including thread_id', async () => {
+    const responseWithThread = { ...ASK_RESPONSE, thread_id: 'thread-456' }
+    apiClient.ask.mockResolvedValue(responseWithThread)
     const res = await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })
-    expect(res).toEqual({ ok: true, data: ASK_RESPONSE })
+    expect(res).toEqual({ ok: true, data: responseWithThread })
+    expect(res.data.thread_id).toBe('thread-456')
+  })
+
+  it('returns ok: true with thread_id: null when no thread exists', async () => {
+    const responseWithoutThread = { ...ASK_RESPONSE, thread_id: null }
+    apiClient.ask.mockResolvedValue(responseWithoutThread)
+    const res = await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })
+    expect(res).toEqual({ ok: true, data: responseWithoutThread })
+    expect(res.data.thread_id).toBeNull()
   })
 
   it('returns ok: false on VideoNotIngestedError', async () => {
@@ -180,6 +213,20 @@ describe('ASK_QUESTION', () => {
     const res = await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('VIDEO_NOT_INGESTED')
+  })
+
+  it('handles history parameter correctly', async () => {
+    const history = [{ role: 'user', content: 'previous question' }]
+    apiClient.ask.mockResolvedValue(ASK_RESPONSE)
+    await dispatch({
+      type: 'ASK_QUESTION',
+      videoId: 'vid1',
+      question: 'follow-up?',
+      history,
+    })
+    expect(apiClient.ask).toHaveBeenCalledWith('vid1', 'follow-up?', history, {
+      threadId: null,
+    })
   })
 })
 

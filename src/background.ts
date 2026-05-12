@@ -58,7 +58,8 @@ async function handleAskQuestion(msg: Record<string, unknown>): Promise<unknown>
   const question = msg['question'] as string
   const history = (msg['history'] as unknown[]) ?? []
   const k = msg['k'] as number | undefined
-  const opts = k !== undefined ? { k } : {}
+  const threadId = (msg['threadId'] as string | null | undefined) ?? null
+  const opts = { ...(k !== undefined ? { k } : {}), threadId }
   return apiClient.ask(videoId, question, history, opts)
 }
 

@@ -27,8 +27,12 @@ function makeStorage(initialTurns = []) {
   let _turns = [...initialTurns]
   return {
     getHistory: vi.fn(async () => [..._turns]),
-    appendTurn: vi.fn(async (_id, turn) => { _turns.push(turn) }),
-    clearHistory: vi.fn(async () => { _turns = [] }),
+    appendTurn: vi.fn(async (_id, turn) => {
+      _turns.push(turn)
+    }),
+    clearHistory: vi.fn(async () => {
+      _turns = []
+    }),
     _getTurns: () => _turns,
   }
 }
@@ -70,8 +74,8 @@ afterEach(() => {
 describe('ask happy path', () => {
   it('auto-ingests and shows the assistant answer', async () => {
     sendMessage
-      .mockResolvedValueOnce(INGEST_OK)   // INGEST_VIDEO
-      .mockResolvedValueOnce(ASK_OK)      // ASK_QUESTION
+      .mockResolvedValueOnce(INGEST_OK) // INGEST_VIDEO
+      .mockResolvedValueOnce(ASK_OK) // ASK_QUESTION
 
     await session.handleSend(QUESTION, VIDEO_ID)
 
@@ -89,7 +93,10 @@ describe('ask happy path', () => {
   })
 
   it('shows refused style when backend marks answer refused', async () => {
-    const refusedAsk = { ok: true, data: { answer: 'Sorry, not available.', refused: true, citations: [] } }
+    const refusedAsk = {
+      ok: true,
+      data: { answer: 'Sorry, not available.', refused: true, citations: [] },
+    }
     sendMessage.mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce(refusedAsk)
 
     await session.handleSend(QUESTION, VIDEO_ID)
@@ -118,7 +125,7 @@ describe('auto-ingest tracking', () => {
   it('does NOT send INGEST_VIDEO on the second question for the same video', async () => {
     sendMessage.mockResolvedValueOnce(INGEST_OK).mockResolvedValue(ASK_OK)
 
-    await session.handleSend(QUESTION, VIDEO_ID)          // first — ingests
+    await session.handleSend(QUESTION, VIDEO_ID) // first — ingests
     sendMessage.mockClear()
     await session.handleSend('Second question?', VIDEO_ID) // second — no ingest
 
@@ -151,7 +158,12 @@ describe('cancel', () => {
 
     // Second ask: ASK_QUESTION never resolves (pending)
     let resolveAsk
-    sendMessage.mockImplementation(() => new Promise((r) => { resolveAsk = r }))
+    sendMessage.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveAsk = r
+        }),
+    )
 
     const askPromise = session.handleSend('New question?', VIDEO_ID)
     await flushAsync() // let handleSend reach the await sendMessage
@@ -171,7 +183,12 @@ describe('cancel', () => {
 
   it('cancel during ingest phase stops before asking', async () => {
     let resolveIngest
-    sendMessage.mockImplementation(() => new Promise((r) => { resolveIngest = r }))
+    sendMessage.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveIngest = r
+        }),
+    )
 
     const askPromise = session.handleSend(QUESTION, VIDEO_ID)
     await flushAsync()
@@ -198,9 +215,7 @@ describe('no video ID', () => {
     await session.handleSend(QUESTION, null)
 
     expect(sendMessage).not.toHaveBeenCalled()
-    expect(sidebar.addMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ role: 'error' }),
-    )
+    expect(sidebar.addMessage).toHaveBeenCalledWith(expect.objectContaining({ role: 'error' }))
   })
 })
 
@@ -214,9 +229,7 @@ describe('backend unreachable', () => {
 
     await session.handleSend(QUESTION, VIDEO_ID)
 
-    expect(sidebar.showToast).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'Retry' }),
-    )
+    expect(sidebar.showToast).toHaveBeenCalledWith(expect.objectContaining({ action: 'Retry' }))
   })
 
   it('shows toast on BACKEND_UNREACHABLE during ingest', async () => {
@@ -228,9 +241,7 @@ describe('backend unreachable', () => {
 
     await session.handleSend(QUESTION, VIDEO_ID)
 
-    expect(sidebar.showToast).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'Retry' }),
-    )
+    expect(sidebar.showToast).toHaveBeenCalledWith(expect.objectContaining({ action: 'Retry' }))
     // ASK was never sent
     expect(sendMessage).toHaveBeenCalledTimes(1)
   })
@@ -269,10 +280,12 @@ describe('history storage', () => {
     ]
     const storage = makeStorage(storedTurns)
     const localSidebar = makeSidebar()
-    const localSendMessage = vi.fn()
-      .mockResolvedValueOnce(INGEST_OK)
-      .mockResolvedValueOnce(ASK_OK)
-    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage, storage })
+    const localSendMessage = vi.fn().mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({
+      sidebar: localSidebar,
+      sendMessage: localSendMessage,
+      storage,
+    })
 
     await localSession.handleSend(QUESTION, VIDEO_ID)
 
@@ -280,27 +293,119 @@ describe('history storage', () => {
     expect(askCall[0].history).toEqual(storedTurns)
   })
 
+  it('includes threadId: null on first question', async () => {
+    const storage = makeStorage([])
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi.fn().mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({
+      sidebar: localSidebar,
+      sendMessage: localSendMessage,
+      storage,
+    })
+
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+
+    const askCall = localSendMessage.mock.calls.find((c) => c[0].type === 'ASK_QUESTION')
+    expect(askCall[0].threadId).toBe(null)
+  })
+
+  it('stores thread_id from response and includes it in subsequent questions', async () => {
+    const askWithThread = {
+      ok: true,
+      data: { answer: 'First answer.', refused: false, citations: [], thread_id: 'thread-abc' },
+    }
+    const storage = makeStorage([])
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi
+      .fn()
+      .mockResolvedValueOnce(INGEST_OK)
+      .mockResolvedValueOnce(askWithThread)
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { answer: 'Second answer.', refused: false, citations: [], thread_id: 'thread-abc' },
+      })
+    const localSession = createQaSession({
+      sidebar: localSidebar,
+      sendMessage: localSendMessage,
+      storage,
+    })
+
+    // First question
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+    const firstAskCall = localSendMessage.mock.calls.find((c) => c[0].type === 'ASK_QUESTION')
+    expect(firstAskCall[0].threadId).toBe(null)
+
+    // Second question — should include thread_id
+    await localSession.handleSend('Follow-up question?', VIDEO_ID)
+    const secondAskCall = localSendMessage.mock.calls.filter((c) => c[0].type === 'ASK_QUESTION')[1]
+    expect(secondAskCall[0].threadId).toBe('thread-abc')
+  })
+
+  it('deletes thread_id on handleClear', async () => {
+    const askWithThread = {
+      ok: true,
+      data: { answer: 'Answer.', refused: false, citations: [], thread_id: 'thread-xyz' },
+    }
+    const storage = makeStorage([])
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi
+      .fn()
+      .mockResolvedValueOnce(INGEST_OK)
+      .mockResolvedValueOnce(askWithThread)
+      .mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({
+      sidebar: localSidebar,
+      sendMessage: localSendMessage,
+      storage,
+    })
+
+    // First question establishes thread_id
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+    const firstAskCall = localSendMessage.mock.calls.find((c) => c[0].type === 'ASK_QUESTION')
+    expect(firstAskCall[0].threadId).toBe(null)
+
+    // Clear conversation
+    await localSession.handleClear(VIDEO_ID)
+
+    // Next question should have threadId: null again
+    await localSession.handleSend('New conversation?', VIDEO_ID)
+    const afterClearCall = localSendMessage.mock.calls.filter(
+      (c) => c[0].type === 'ASK_QUESTION',
+    )[1]
+    expect(afterClearCall[0].threadId).toBe(null)
+  })
+
   it('appends user and assistant turns after a successful ask', async () => {
     const storage = makeStorage()
     const localSidebar = makeSidebar()
-    const localSendMessage = vi.fn()
-      .mockResolvedValueOnce(INGEST_OK)
-      .mockResolvedValueOnce(ASK_OK)
-    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage, storage })
+    const localSendMessage = vi.fn().mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({
+      sidebar: localSidebar,
+      sendMessage: localSendMessage,
+      storage,
+    })
 
     await localSession.handleSend(QUESTION, VIDEO_ID)
 
     expect(storage.appendTurn).toHaveBeenCalledWith(VIDEO_ID, { role: 'user', content: QUESTION })
-    expect(storage.appendTurn).toHaveBeenCalledWith(VIDEO_ID, { role: 'assistant', content: ASK_OK.data.answer })
+    expect(storage.appendTurn).toHaveBeenCalledWith(VIDEO_ID, {
+      role: 'assistant',
+      content: ASK_OK.data.answer,
+    })
   })
 
   it('does not append turns when the ask fails', async () => {
     const storage = makeStorage()
     const localSidebar = makeSidebar()
-    const localSendMessage = vi.fn()
+    const localSendMessage = vi
+      .fn()
       .mockResolvedValueOnce(INGEST_OK)
       .mockResolvedValueOnce({ ok: false, error: { code: 'ERR', message: 'fail' } })
-    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage, storage })
+    const localSession = createQaSession({
+      sidebar: localSidebar,
+      sendMessage: localSendMessage,
+      storage,
+    })
 
     await localSession.handleSend(QUESTION, VIDEO_ID)
 
@@ -310,10 +415,12 @@ describe('history storage', () => {
   it('passes empty history when no prior turns exist', async () => {
     const storage = makeStorage([])
     const localSidebar = makeSidebar()
-    const localSendMessage = vi.fn()
-      .mockResolvedValueOnce(INGEST_OK)
-      .mockResolvedValueOnce(ASK_OK)
-    const localSession = createQaSession({ sidebar: localSidebar, sendMessage: localSendMessage, storage })
+    const localSendMessage = vi.fn().mockResolvedValueOnce(INGEST_OK).mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({
+      sidebar: localSidebar,
+      sendMessage: localSendMessage,
+      storage,
+    })
 
     await localSession.handleSend(QUESTION, VIDEO_ID)
 
@@ -391,6 +498,38 @@ describe('handleClear', () => {
     await localSession.handleClear(null)
     expect(storage.clearHistory).not.toHaveBeenCalled()
   })
+
+  it('deletes stored thread_id on clear', async () => {
+    const askWithThread = {
+      ok: true,
+      data: { answer: 'Answer.', refused: false, citations: [], thread_id: 'thread-clear-test' },
+    }
+    const storage = makeStorage([])
+    const localSidebar = makeSidebar()
+    const localSendMessage = vi
+      .fn()
+      .mockResolvedValueOnce(INGEST_OK)
+      .mockResolvedValueOnce(askWithThread)
+      .mockResolvedValueOnce(ASK_OK)
+    const localSession = createQaSession({
+      sidebar: localSidebar,
+      sendMessage: localSendMessage,
+      storage,
+    })
+
+    // Establish thread_id
+    await localSession.handleSend(QUESTION, VIDEO_ID)
+
+    // Clear should delete thread_id
+    await localSession.handleClear(VIDEO_ID)
+
+    // Next question should not have the old thread_id
+    await localSession.handleSend('After clear?', VIDEO_ID)
+    const afterClearCall = localSendMessage.mock.calls.filter(
+      (c) => c[0].type === 'ASK_QUESTION',
+    )[1]
+    expect(afterClearCall[0].threadId).toBe(null)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -405,9 +544,7 @@ describe('error routing during ingest', () => {
     })
     await session.handleSend(QUESTION, VIDEO_ID)
     expect(sidebar.showEmptyState).toHaveBeenCalledWith('no-captions')
-    expect(sidebar.addMessage).not.toHaveBeenCalledWith(
-      expect.objectContaining({ role: 'error' }),
-    )
+    expect(sidebar.addMessage).not.toHaveBeenCalledWith(expect.objectContaining({ role: 'error' }))
   })
 
   it('shows backend-down empty state for BACKEND_UNREACHABLE during ingest', async () => {
@@ -425,9 +562,7 @@ describe('error routing during ingest', () => {
       error: { code: 'BACKEND_UNREACHABLE', message: 'Down.' },
     })
     await session.handleSend(QUESTION, VIDEO_ID)
-    expect(sidebar.showToast).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'Retry' }),
-    )
+    expect(sidebar.showToast).toHaveBeenCalledWith(expect.objectContaining({ action: 'Retry' }))
   })
 
   it('shows key-missing empty state for API_KEY_MISSING during ingest', async () => {
@@ -446,9 +581,7 @@ describe('error routing during ingest', () => {
     })
     await session.handleSend(QUESTION, VIDEO_ID)
     expect(sidebar.showEmptyState).not.toHaveBeenCalled()
-    expect(sidebar.addMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ role: 'error' }),
-    )
+    expect(sidebar.addMessage).toHaveBeenCalledWith(expect.objectContaining({ role: 'error' }))
   })
 })
 
@@ -461,7 +594,7 @@ describe('error routing during ask', () => {
     await session.handleSend(QUESTION, VIDEO_ID)
     const call = sidebar.finalizeMessage.mock.calls.at(-1)
     expect(call[1].role).toBe('error')
-    expect(call[1].text).toContain("rate limit")
+    expect(call[1].text).toContain('rate limit')
   })
 })
 

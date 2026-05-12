@@ -42,8 +42,13 @@ interface HandleErrorOpts {
   videoId?: string | null
 }
 
-export function createQaSession({ sidebar, sendMessage, storage = null }: QaSessionDeps): QaSession {
+export function createQaSession({
+  sidebar,
+  sendMessage,
+  storage = null,
+}: QaSessionDeps): QaSession {
   const _ingestedIds = new Set<string>()
+  const _threadIds = new Map<string, string>()
   let _currentRef: { cancelled: boolean } | null = null
   let _healthTimer: ReturnType<typeof setInterval> | null = null
 
@@ -124,6 +129,9 @@ export function createQaSession({ sidebar, sendMessage, storage = null }: QaSess
     if (storage && videoId) {
       await storage.clearHistory(videoId)
     }
+    if (videoId) {
+      _threadIds.delete(videoId)
+    }
   }
 
   async function handleSend(question: string, videoId: string | null): Promise<void> {
@@ -199,10 +207,11 @@ export function createQaSession({ sidebar, sendMessage, storage = null }: QaSess
     })
 
     const history = storage ? await storage.getHistory(videoId) : []
+    const threadId = _threadIds.get(videoId) ?? null
 
     let res: MessageResponse | undefined
     try {
-      res = await sendMessage({ type: 'ASK_QUESTION', videoId, question, history })
+      res = await sendMessage({ type: 'ASK_QUESTION', videoId, question, history, threadId })
     } catch (err) {
       if (ref.cancelled) return
       _handleError('BACKEND_UNREACHABLE', (err as Error | undefined)?.message, {
@@ -222,11 +231,16 @@ export function createQaSession({ sidebar, sendMessage, storage = null }: QaSess
 
     if (res?.ok) {
       const answer = (res.data?.['answer'] as string) ?? ''
+      const returnedThreadId = res.data?.['thread_id'] as string | null | undefined
+      if (returnedThreadId) {
+        _threadIds.set(videoId, returnedThreadId)
+      }
       sidebar.finalizeMessage(skeletonId, {
         role: 'assistant',
         text: answer,
         refused: res.data?.['refused'] as boolean | undefined,
-        citations: (res.data?.['citations'] as import('./sidebar.js').DisplayCitation[] | undefined) ?? [],
+        citations:
+          (res.data?.['citations'] as import('./sidebar.js').DisplayCitation[] | undefined) ?? [],
         animate: true,
       })
       if (storage) {
