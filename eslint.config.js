@@ -1,20 +1,45 @@
 import globals from 'globals'
+import tseslint from '@typescript-eslint/eslint-plugin'
+import tsparser from '@typescript-eslint/parser'
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
+  // Block 1: TypeScript source files — full type-aware linting
   {
-    files: ['src/**/*.js'],
+    files: ['src/**/*.ts'],
     languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'module',
-      globals: {
-        ...globals.browser,
-        chrome: 'readonly',
-        browser: 'readonly',
-      },
+      parser: tsparser,
+      parserOptions: { project: './tsconfig.json' },
+      globals: { ...globals.browser, chrome: 'readonly' },
     },
+    plugins: { '@typescript-eslint': tseslint },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      ...tseslint.configs.recommended.rules,
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'no-console': 'off',
+    },
+  },
+
+  // Block 2: JS test files — parse-only, no project reference
+  {
+    files: ['__tests__/**/*.js', 'src/**/*.js'],
+    languageOptions: {
+      parser: tsparser,
+      globals: { ...globals.browser, chrome: 'readonly' },
+    },
+    plugins: { '@typescript-eslint': tseslint },
+    rules: {
+      ...tseslint.configs.recommended.rules,
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       'no-console': 'off',
     },
   },
