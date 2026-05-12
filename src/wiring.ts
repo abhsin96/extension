@@ -54,6 +54,24 @@ export function createQaSession({
 
   const sm = createStateMachine()
 
+  // Listen for INGEST_PROGRESS events from the background SW
+  // Guard against test environments where chrome is not defined
+  // NOTE: This listener is never removed. In production, createQaSession is called
+  // once at content-script load, so this is harmless. If createQaSession is ever
+  // called multiple times in a live context, listeners will accumulate.
+  if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === 'INGEST_PROGRESS') {
+        // Only process progress events if we're actually ingesting
+        if (sm.getState() !== STATES.INGESTING) return
+
+        const step = message.step as string
+        const pct = message.pct as number
+        sidebar.setLoading(true, { text: `${step}… ${pct}%` })
+      }
+    })
+  }
+
   function _stopHealthPoll(): void {
     if (_healthTimer !== null) {
       clearInterval(_healthTimer)

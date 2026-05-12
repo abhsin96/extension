@@ -16,10 +16,7 @@ const DEBOUNCE_MS = 200
 // Helpers
 // ---------------------------------------------------------------------------
 
-function debounce<T extends unknown[]>(
-  fn: (...args: T) => void,
-  ms: number,
-): (...args: T) => void {
+function debounce<T extends unknown[]>(fn: (...args: T) => void, ms: number): (...args: T) => void {
   let timer: ReturnType<typeof setTimeout> | null = null
   return (...args: T) => {
     clearTimeout(timer ?? undefined)
@@ -54,7 +51,15 @@ const sidebar = createSidebar({
 
 const session = createQaSession({
   sidebar,
-  sendMessage: (msg) => chrome.runtime.sendMessage(msg),
+  sendMessage: async (msg) => {
+    // Inject current tab ID for INGEST_VIDEO messages to enable progress streaming
+    if (msg.type === 'INGEST_VIDEO') {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+      const tabId = tabs[0]?.id
+      return chrome.runtime.sendMessage({ ...msg, tabId })
+    }
+    return chrome.runtime.sendMessage(msg)
+  },
   storage: historyStorage,
 })
 
@@ -97,7 +102,8 @@ function broadcast(videoId: string, url: string): void {
     checkTranscriptAvailability(videoId)
   }
   console.log(SENTINEL, { videoId, url })
-  void chrome.runtime.sendMessage({ type: 'VIDEO_CHANGED', videoId, url })
+  void chrome.runtime
+    .sendMessage({ type: 'VIDEO_CHANGED', videoId, url })
     .then((res) => {
       if (res?.ok && res.data?.health) {
         const hasKey = res.data.health.has_api_key

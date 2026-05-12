@@ -59,6 +59,20 @@ let session: any
 beforeEach(() => {
   sidebar = makeSidebar()
   sendMessage = vi.fn()
+
+  // Mock chrome API for all tests
+  ;(global as any).chrome = {
+    runtime: {
+      onMessage: {
+        addListener: vi.fn(),
+      },
+      sendMessage: vi.fn(),
+    },
+    tabs: {
+      query: vi.fn().mockResolvedValue([{ id: 123 }]),
+    },
+  }
+
   session = createQaSession({ sidebar: sidebar as any, sendMessage })
 })
 
@@ -79,7 +93,9 @@ describe('ask happy path', () => {
 
     await session.handleSend(QUESTION, VIDEO_ID)
 
-    expect(sendMessage).toHaveBeenCalledWith({ type: 'INGEST_VIDEO', videoId: VIDEO_ID })
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'INGEST_VIDEO', videoId: VIDEO_ID }),
+    )
     expect(sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'ASK_QUESTION', videoId: VIDEO_ID, question: QUESTION }),
     )
@@ -90,6 +106,63 @@ describe('ask happy path', () => {
       expect.any(String),
       expect.objectContaining({ role: 'assistant', text: ASK_OK.data.answer, refused: false }),
     )
+  })
+
+  it('receives live progress updates during ingest streaming', async () => {
+    // Mock chrome.runtime.onMessage to simulate INGEST_PROGRESS events
+    const progressListeners: Array<(msg: any) => void> = []
+    const mockOnMessage = {
+      addListener: vi.fn((callback: (msg: any) => void) => {
+        progressListeners.push(callback)
+      }),
+    }
+    const originalChrome = (global as any).chrome
+    ;(global as any).chrome = {
+      ...((global as any).chrome ?? {}),
+      runtime: {
+        ...((global as any).chrome?.runtime ?? {}),
+        onMessage: mockOnMessage,
+        sendMessage: sendMessage,
+      },
+      tabs: {
+        query: vi.fn().mockResolvedValue([{ id: 123 }]),
+      },
+    }
+
+    // Create a new session to register the progress listener
+    const sessionWithProgress = createQaSession({ sidebar: sidebar as any, sendMessage })
+
+    let resolveIngest: (v: unknown) => void
+    const ingestPending = new Promise((r) => {
+      resolveIngest = r
+    })
+
+    sendMessage
+      .mockImplementationOnce(() => ingestPending) // INGEST_VIDEO — holds open
+      .mockResolvedValueOnce(ASK_OK) // ASK_QUESTION
+
+    const sendPromise = sessionWithProgress.handleSend(QUESTION, VIDEO_ID)
+    await flushAsync() // reach the await sendMessage point
+
+    // dispatch progress while ingest is still pending
+    progressListeners.forEach((l) =>
+      l({ type: 'INGEST_PROGRESS', step: 'Fetching transcript', pct: 20 }),
+    )
+    await flushAsync()
+    progressListeners.forEach((l) => l({ type: 'INGEST_PROGRESS', step: 'Chunking', pct: 50 }))
+    await flushAsync()
+    progressListeners.forEach((l) => l({ type: 'INGEST_PROGRESS', step: 'Embedding', pct: 80 }))
+    await flushAsync()
+
+    resolveIngest!(INGEST_OK) // now complete the ingest
+    await sendPromise
+
+    expect(sidebar.setLoading).toHaveBeenCalledWith(true, { text: 'Fetching transcript… 20%' })
+    expect(sidebar.setLoading).toHaveBeenCalledWith(true, { text: 'Chunking… 50%' })
+    expect(sidebar.setLoading).toHaveBeenCalledWith(true, { text: 'Embedding… 80%' })
+
+    // Restore original chrome
+    ;(global as any).chrome = originalChrome
   })
 
   it('shows refused style when backend marks answer refused', async () => {

@@ -50,6 +50,28 @@ async function handleVideoChanged(msg: Record<string, unknown>): Promise<unknown
 async function handleIngestVideo(msg: Record<string, unknown>): Promise<unknown> {
   const videoId = msg['videoId'] as string
   const force = (msg['force'] as boolean | undefined) ?? false
+  const tabId = msg['tabId'] as number | undefined
+
+  // If tabId is provided, enable streaming and push progress events to the content script
+  if (tabId !== undefined) {
+    return apiClient.ingest(videoId, {
+      force,
+      stream: true,
+      onProgress: (step: string, pct: number) => {
+        chrome.tabs
+          .sendMessage(tabId, {
+            type: 'INGEST_PROGRESS',
+            step,
+            pct,
+          })
+          .catch(() => {
+            // Tab may have closed — ignore
+          })
+      },
+    })
+  }
+
+  // Fallback to non-streaming mode
   return apiClient.ingest(videoId, { force })
 }
 

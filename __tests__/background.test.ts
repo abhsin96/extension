@@ -152,6 +152,66 @@ describe('INGEST_VIDEO', () => {
     expect(res).toEqual({ ok: true, data: INGEST_RESPONSE })
   })
 
+  it('calls apiClient.ingest with stream: true and onProgress when tabId is provided', async () => {
+    ;(apiClient.ingest as any).mockResolvedValue(INGEST_RESPONSE)
+    await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1', tabId: 123 })
+    expect(apiClient.ingest).toHaveBeenCalledWith('vid1', {
+      force: false,
+      stream: true,
+      onProgress: expect.any(Function),
+    })
+  })
+
+  it('sends INGEST_PROGRESS events via chrome.tabs.sendMessage when onProgress is triggered', async () => {
+    let capturedOnProgress: any
+    ;(apiClient.ingest as any).mockImplementation((_vid: string, opts: any) => {
+      capturedOnProgress = opts.onProgress
+      return Promise.resolve(INGEST_RESPONSE)
+    })
+
+    // Mock chrome.tabs.sendMessage
+    const mockSendMessage = vi.fn().mockResolvedValue(undefined)
+    ;(global as any).chrome = {
+      ...((global as any).chrome || {}),
+      tabs: { sendMessage: mockSendMessage },
+    }
+
+    await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1', tabId: 123 })
+
+    // Trigger the onProgress callback
+    capturedOnProgress('Fetching transcript', 50)
+
+    expect(mockSendMessage).toHaveBeenCalledWith(123, {
+      type: 'INGEST_PROGRESS',
+      step: 'Fetching transcript',
+      pct: 50,
+    })
+  })
+
+  it('swallows chrome.tabs.sendMessage rejections (tab closed case)', async () => {
+    let capturedOnProgress: any
+    ;(apiClient.ingest as any).mockImplementation((_vid: string, opts: any) => {
+      capturedOnProgress = opts.onProgress
+      return Promise.resolve(INGEST_RESPONSE)
+    })
+
+    // Mock chrome.tabs.sendMessage to reject (tab closed)
+    const mockSendMessage = vi.fn().mockRejectedValue(new Error('Tab closed'))
+    ;(global as any).chrome = {
+      ...((global as any).chrome || {}),
+      tabs: { sendMessage: mockSendMessage },
+    }
+
+    await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1', tabId: 123 })
+
+    // Trigger the onProgress callback - should not throw
+    await expect(async () => {
+      capturedOnProgress('Fetching transcript', 50)
+      // Give it a tick to process the rejection
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }).not.toThrow()
+  })
+
   it('returns ok: false on TranscriptDisabledError', async () => {
     const err = Object.assign(new Error('no transcript'), { code: 'TRANSCRIPT_DISABLED' })
     ;(apiClient.ingest as any).mockRejectedValue(err)
