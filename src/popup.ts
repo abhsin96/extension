@@ -16,8 +16,8 @@ function setStatus(dotId: string, valId: string, { text, state }: StatusOptions)
   val.textContent = text
 }
 
-async function refresh(): Promise<void> {
-  const res = await chrome.runtime.sendMessage({ type: 'GET_STATUS' })
+export async function refresh(): Promise<void> {
+  const res = await chrome.runtime.sendMessage({ type: 'PING_HEALTH' })
 
   if (!res.ok) {
     setStatus('dot-backend', 'val-backend', { text: 'unreachable', state: 'err' })
@@ -32,7 +32,7 @@ async function refresh(): Promise<void> {
   })
 }
 
-async function loadCurrentVideo(): Promise<void> {
+export async function loadCurrentVideo(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   const url = tab?.url ?? ''
   const videoId = new URL(url.startsWith('http') ? url : 'http://x').searchParams.get('v')
@@ -50,10 +50,21 @@ async function loadCurrentVideo(): Promise<void> {
   }
 }
 
-document.getElementById('options-link')?.addEventListener('click', (e) => {
-  e.preventDefault()
-  chrome.runtime.openOptionsPage()
-})
+/**
+ * Initialize the popup UI — attach event listeners and load initial data.
+ * Only call this in the browser context, not during tests.
+ */
+export function init(): void {
+  document.getElementById('options-link')?.addEventListener('click', (e) => {
+    e.preventDefault()
+    chrome.runtime.openOptionsPage()
+  })
 
-void refresh().catch(console.error)
-void loadCurrentVideo().catch(console.error)
+  void refresh().catch(console.error)
+  void loadCurrentVideo().catch(console.error)
+}
+
+// Auto-initialize when running in browser (not in test environment)
+if (typeof chrome !== 'undefined' && typeof document !== 'undefined') {
+  init()
+}
