@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Chrome API stub — must be set up before importing background.js
 // ---------------------------------------------------------------------------
 
-let messageListener = null
+let messageListener:
+  | ((
+      message: any,
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (response: any) => void,
+    ) => boolean | void)
+  | null = null
 
 const chrome = {
   runtime: {
@@ -46,9 +52,9 @@ await import('../src/background.js')
 // Helper: dispatch a message and collect the sendResponse argument
 // ---------------------------------------------------------------------------
 
-function dispatch(message) {
+function dispatch(message: any) {
   return new Promise((resolve) => {
-    const keepOpen = messageListener(message, {}, resolve)
+    const keepOpen = messageListener!(message, {} as chrome.runtime.MessageSender, resolve)
     // If the handler returns false (unknown type), sendResponse is called sync
     if (keepOpen === false) {
       // already resolved synchronously
@@ -75,13 +81,13 @@ afterEach(() => {
 describe('GET_CURRENT_VIDEO', () => {
   it('returns null when no video has been set', async () => {
     chrome.storage.session.get.mockResolvedValue({ currentVideoId: null })
-    const res = await dispatch({ type: 'GET_CURRENT_VIDEO' })
+    const res = (await dispatch({ type: 'GET_CURRENT_VIDEO' })) as any
     expect(res).toEqual({ ok: true, data: { videoId: null } })
   })
 
   it('returns videoId from session storage when memory is cold', async () => {
     chrome.storage.session.get.mockResolvedValue({ currentVideoId: 'storedVid' })
-    const res = await dispatch({ type: 'GET_CURRENT_VIDEO' })
+    const res = (await dispatch({ type: 'GET_CURRENT_VIDEO' })) as any
     expect(res.ok).toBe(true)
     expect(res.data.videoId).toBe('storedVid')
   })
@@ -93,19 +99,19 @@ describe('GET_CURRENT_VIDEO', () => {
 
 describe('VIDEO_CHANGED', () => {
   it('calls pingHealth', async () => {
-    apiClient.pingHealth.mockResolvedValue({ status: 'ok' })
+    ;(apiClient.pingHealth as any).mockResolvedValue({ status: 'ok' })
     await dispatch({ type: 'VIDEO_CHANGED', videoId: 'vid1' })
     expect(apiClient.pingHealth).toHaveBeenCalledOnce()
   })
 
   it('returns ok: true with videoId, url and health', async () => {
     const health = { status: 'ok', has_api_key: true }
-    apiClient.pingHealth.mockResolvedValue(health)
-    const res = await dispatch({
+    ;(apiClient.pingHealth as any).mockResolvedValue(health)
+    const res = (await dispatch({
       type: 'VIDEO_CHANGED',
       videoId: 'abc',
       url: 'https://youtube.com/watch?v=abc',
-    })
+    })) as any
     expect(res).toEqual({
       ok: true,
       data: { videoId: 'abc', url: 'https://youtube.com/watch?v=abc', health },
@@ -114,8 +120,8 @@ describe('VIDEO_CHANGED', () => {
 
   it('returns ok: false on apiClient error', async () => {
     const err = Object.assign(new Error('unreachable'), { code: 'BACKEND_UNREACHABLE' })
-    apiClient.pingHealth.mockRejectedValue(err)
-    const res = await dispatch({ type: 'VIDEO_CHANGED', videoId: 'vid1' })
+    ;(apiClient.pingHealth as any).mockRejectedValue(err)
+    const res = (await dispatch({ type: 'VIDEO_CHANGED', videoId: 'vid1' })) as any
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('BACKEND_UNREACHABLE')
   })
@@ -129,27 +135,27 @@ describe('INGEST_VIDEO', () => {
   const INGEST_RESPONSE = { status: 'done', chunk_count: 12, cached: false }
 
   it('calls apiClient.ingest with videoId and force: false by default', async () => {
-    apiClient.ingest.mockResolvedValue(INGEST_RESPONSE)
+    ;(apiClient.ingest as any).mockResolvedValue(INGEST_RESPONSE)
     await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1' })
     expect(apiClient.ingest).toHaveBeenCalledWith('vid1', { force: false })
   })
 
   it('passes force: true when specified', async () => {
-    apiClient.ingest.mockResolvedValue(INGEST_RESPONSE)
+    ;(apiClient.ingest as any).mockResolvedValue(INGEST_RESPONSE)
     await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1', force: true })
     expect(apiClient.ingest).toHaveBeenCalledWith('vid1', { force: true })
   })
 
   it('returns ok: true with ingest data', async () => {
-    apiClient.ingest.mockResolvedValue(INGEST_RESPONSE)
-    const res = await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1' })
+    ;(apiClient.ingest as any).mockResolvedValue(INGEST_RESPONSE)
+    const res = (await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1' })) as any
     expect(res).toEqual({ ok: true, data: INGEST_RESPONSE })
   })
 
   it('returns ok: false on TranscriptDisabledError', async () => {
     const err = Object.assign(new Error('no transcript'), { code: 'TRANSCRIPT_DISABLED' })
-    apiClient.ingest.mockRejectedValue(err)
-    const res = await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1' })
+    ;(apiClient.ingest as any).mockRejectedValue(err)
+    const res = (await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1' })) as any
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('TRANSCRIPT_DISABLED')
     expect(res.error.message).toBe('no transcript')
@@ -169,19 +175,19 @@ describe('ASK_QUESTION', () => {
   }
 
   it('calls apiClient.ask with videoId and question', async () => {
-    apiClient.ask.mockResolvedValue(ASK_RESPONSE)
+    ;(apiClient.ask as any).mockResolvedValue(ASK_RESPONSE)
     await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'What is it?' })
     expect(apiClient.ask).toHaveBeenCalledWith('vid1', 'What is it?', [], { threadId: null })
   })
 
   it('forwards custom k to apiClient.ask', async () => {
-    apiClient.ask.mockResolvedValue(ASK_RESPONSE)
+    ;(apiClient.ask as any).mockResolvedValue(ASK_RESPONSE)
     await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?', k: 3 })
     expect(apiClient.ask).toHaveBeenCalledWith('vid1', 'q?', [], { k: 3, threadId: null })
   })
 
   it('forwards threadId to apiClient.ask when provided', async () => {
-    apiClient.ask.mockResolvedValue(ASK_RESPONSE)
+    ;(apiClient.ask as any).mockResolvedValue(ASK_RESPONSE)
     await dispatch({
       type: 'ASK_QUESTION',
       videoId: 'vid1',
@@ -193,31 +199,31 @@ describe('ASK_QUESTION', () => {
 
   it('returns ok: true with ask data including thread_id', async () => {
     const responseWithThread = { ...ASK_RESPONSE, thread_id: 'thread-456' }
-    apiClient.ask.mockResolvedValue(responseWithThread)
-    const res = await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })
+    ;(apiClient.ask as any).mockResolvedValue(responseWithThread)
+    const res = (await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })) as any
     expect(res).toEqual({ ok: true, data: responseWithThread })
     expect(res.data.thread_id).toBe('thread-456')
   })
 
   it('returns ok: true with thread_id: null when no thread exists', async () => {
     const responseWithoutThread = { ...ASK_RESPONSE, thread_id: null }
-    apiClient.ask.mockResolvedValue(responseWithoutThread)
-    const res = await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })
+    ;(apiClient.ask as any).mockResolvedValue(responseWithoutThread)
+    const res = (await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })) as any
     expect(res).toEqual({ ok: true, data: responseWithoutThread })
     expect(res.data.thread_id).toBeNull()
   })
 
   it('returns ok: false on VideoNotIngestedError', async () => {
     const err = Object.assign(new Error("hasn't been analysed"), { code: 'VIDEO_NOT_INGESTED' })
-    apiClient.ask.mockRejectedValue(err)
-    const res = await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })
+    ;(apiClient.ask as any).mockRejectedValue(err)
+    const res = (await dispatch({ type: 'ASK_QUESTION', videoId: 'vid1', question: 'q?' })) as any
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('VIDEO_NOT_INGESTED')
   })
 
   it('handles history parameter correctly', async () => {
     const history = [{ role: 'user', content: 'previous question' }]
-    apiClient.ask.mockResolvedValue(ASK_RESPONSE)
+    ;(apiClient.ask as any).mockResolvedValue(ASK_RESPONSE)
     await dispatch({
       type: 'ASK_QUESTION',
       videoId: 'vid1',
@@ -236,22 +242,22 @@ describe('ASK_QUESTION', () => {
 
 describe('PING_HEALTH', () => {
   it('calls apiClient.pingHealth', async () => {
-    apiClient.pingHealth.mockResolvedValue({ status: 'ok' })
+    ;(apiClient.pingHealth as any).mockResolvedValue({ status: 'ok' })
     await dispatch({ type: 'PING_HEALTH' })
     expect(apiClient.pingHealth).toHaveBeenCalledOnce()
   })
 
   it('returns ok: true with health data', async () => {
     const health = { status: 'ok', has_api_key: true }
-    apiClient.pingHealth.mockResolvedValue(health)
-    const res = await dispatch({ type: 'PING_HEALTH' })
+    ;(apiClient.pingHealth as any).mockResolvedValue(health)
+    const res = (await dispatch({ type: 'PING_HEALTH' })) as any
     expect(res).toEqual({ ok: true, data: health })
   })
 
   it('returns ok: false when backend is unreachable', async () => {
     const err = Object.assign(new Error('unreachable'), { code: 'BACKEND_UNREACHABLE' })
-    apiClient.pingHealth.mockRejectedValue(err)
-    const res = await dispatch({ type: 'PING_HEALTH' })
+    ;(apiClient.pingHealth as any).mockRejectedValue(err)
+    const res = (await dispatch({ type: 'PING_HEALTH' })) as any
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('BACKEND_UNREACHABLE')
   })
@@ -263,18 +269,18 @@ describe('PING_HEALTH', () => {
 
 describe('unknown message type', () => {
   it('returns ok: false with UNKNOWN_MESSAGE_TYPE code', async () => {
-    const res = await dispatch({ type: 'DOES_NOT_EXIST' })
+    const res = (await dispatch({ type: 'DOES_NOT_EXIST' })) as any
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('UNKNOWN_MESSAGE_TYPE')
   })
 
   it('includes the unknown type in the error message', async () => {
-    const res = await dispatch({ type: 'DOES_NOT_EXIST' })
+    const res = (await dispatch({ type: 'DOES_NOT_EXIST' })) as any
     expect(res.error.message).toContain('DOES_NOT_EXIST')
   })
 
   it('handles null/missing type gracefully', async () => {
-    const res = await dispatch({})
+    const res = (await dispatch({})) as any
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('UNKNOWN_MESSAGE_TYPE')
   })
@@ -286,15 +292,15 @@ describe('unknown message type', () => {
 
 describe('error serialisation', () => {
   it('falls back to UNKNOWN code when error has no code', async () => {
-    apiClient.pingHealth.mockRejectedValue(new Error('something broke'))
-    const res = await dispatch({ type: 'PING_HEALTH' })
+    ;(apiClient.pingHealth as any).mockRejectedValue(new Error('something broke'))
+    const res = (await dispatch({ type: 'PING_HEALTH' })) as any
     expect(res.ok).toBe(false)
     expect(res.error.code).toBe('UNKNOWN')
   })
 
   it('includes the error message in the response', async () => {
-    apiClient.pingHealth.mockRejectedValue(new Error('boom'))
-    const res = await dispatch({ type: 'PING_HEALTH' })
+    ;(apiClient.pingHealth as any).mockRejectedValue(new Error('boom'))
+    const res = (await dispatch({ type: 'PING_HEALTH' })) as any
     expect(res.error.message).toBe('boom')
   })
 })

@@ -5,12 +5,16 @@ import { appendTurn, clearHistory, getHistory, MAX_HISTORY_TURNS } from '../src/
 // chrome.storage.local stub
 // ---------------------------------------------------------------------------
 
-let _store = {}
+let _store: Record<string, any> = {}
 
 const storage = {
-  get: vi.fn(async (key) => ({ [key]: _store[key] })),
-  set: vi.fn(async (obj) => { Object.assign(_store, obj) }),
-  remove: vi.fn(async (key) => { delete _store[key] }),
+  get: vi.fn(async (key: string) => ({ [key]: _store[key] })),
+  set: vi.fn(async (obj: Record<string, any>) => {
+    Object.assign(_store, obj)
+  }),
+  remove: vi.fn(async (key: string) => {
+    delete _store[key]
+  }),
 }
 
 vi.stubGlobal('chrome', { storage: { local: storage } })
@@ -37,7 +41,7 @@ describe('getHistory', () => {
   })
 
   it('returns stored turns for known video', async () => {
-    _store['history:vid1'] = [{ role: 'user', content: 'hi', timestamp: 1 }]
+    ;(_store as any)['history:vid1'] = [{ role: 'user', content: 'hi', timestamp: 1 }]
     const result = await getHistory('vid1')
     expect(result).toHaveLength(1)
     expect(result[0].content).toBe('hi')

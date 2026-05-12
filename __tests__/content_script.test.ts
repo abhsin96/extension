@@ -10,7 +10,7 @@ const storageMock = {
 vi.stubGlobal('chrome', {
   runtime: {
     sendMessage,
-    getURL: (p) => `chrome-extension://fake/${p}`,
+    getURL: (p: string) => `chrome-extension://fake/${p}`,
   },
   storage: { local: storageMock },
 })
@@ -25,17 +25,17 @@ vi.stubGlobal('chrome', {
 const _origDocAddEL = document.addEventListener.bind(document)
 const _origWinAddEL = window.addEventListener.bind(window)
 
-let _trackedDocListeners = []
-let _trackedWinListeners = []
-let _origPushState
-let _origReplaceState
+let _trackedDocListeners: Array<{ type: string; fn: any; opts: any }> = []
+let _trackedWinListeners: Array<{ type: string; fn: any; opts: any }> = []
+let _origPushState: any
+let _origReplaceState: any
 
 function patchAddEventListeners() {
-  document.addEventListener = (type, fn, opts) => {
+  document.addEventListener = (type: string, fn: any, opts: any) => {
     _trackedDocListeners.push({ type, fn, opts })
     _origDocAddEL(type, fn, opts)
   }
-  window.addEventListener = (type, fn, opts) => {
+  window.addEventListener = (type: string, fn: any, opts: any) => {
     _trackedWinListeners.push({ type, fn, opts })
     _origWinAddEL(type, fn, opts)
   }
@@ -66,7 +66,7 @@ function restoreHistoryMethods() {
 async function loadScript() {
   vi.resetModules()
   vi.stubGlobal('chrome', {
-    runtime: { sendMessage, getURL: (p) => `chrome-extension://fake/${p}` },
+    runtime: { sendMessage, getURL: (p: string) => `chrome-extension://fake/${p}` },
     storage: { local: storageMock },
   })
   patchAddEventListeners()
@@ -197,9 +197,7 @@ describe('debounce', () => {
     vi.runAllTimers()
 
     // Only one VIDEO_CHANGED should fire (for v3 — the last debounced event)
-    const videoChangedCalls = sendMessage.mock.calls.filter(
-      ([m]) => m?.type === 'VIDEO_CHANGED',
-    )
+    const videoChangedCalls = sendMessage.mock.calls.filter(([m]) => m?.type === 'VIDEO_CHANGED')
     expect(videoChangedCalls).toHaveLength(1)
     expect(videoChangedCalls[0][0]).toEqual(
       expect.objectContaining({ type: 'VIDEO_CHANGED', videoId: 'v3' }),

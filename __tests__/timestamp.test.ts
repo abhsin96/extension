@@ -9,14 +9,15 @@ describe('parseTimestamp', () => {
   it("'01:23' → 83", () => expect(parseTimestamp('01:23')).toBe(83))
   it("'1:23' → 83", () => expect(parseTimestamp('1:23')).toBe(83))
   it("'01:23:45' → 5025", () => expect(parseTimestamp('01:23:45')).toBe(5025))
-  it("'1:2:3' → 3723 (single-digit parts allowed)", () => expect(parseTimestamp('1:2:3')).toBe(3723))
+  it("'1:2:3' → 3723 (single-digit parts allowed)", () =>
+    expect(parseTimestamp('1:2:3')).toBe(3723))
   it("'0:00' → 0", () => expect(parseTimestamp('0:00')).toBe(0))
   it("'59:59' → 3599", () => expect(parseTimestamp('59:59')).toBe(3599))
 
   it("'abc' → null", () => expect(parseTimestamp('abc')).toBeNull())
   it("'' → null", () => expect(parseTimestamp('')).toBeNull())
-  it("null → null", () => expect(parseTimestamp(null)).toBeNull())
-  it("undefined → null", () => expect(parseTimestamp(undefined)).toBeNull())
+  it('null → null', () => expect(parseTimestamp(null as any)).toBeNull())
+  it('undefined → null', () => expect(parseTimestamp(undefined as any)).toBeNull())
   it("'1:2:3:4' → null (too many parts)", () => expect(parseTimestamp('1:2:3:4')).toBeNull())
   it("'12' → null (only one part)", () => expect(parseTimestamp('12')).toBeNull())
   it("':30' → null (empty leading part)", () => expect(parseTimestamp(':30')).toBeNull())

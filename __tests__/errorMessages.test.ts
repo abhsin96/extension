@@ -39,7 +39,7 @@ describe('getErrorCopy', () => {
   })
 
   it('falls back to INTERNAL_ERROR for undefined', () => {
-    const copy = getErrorCopy(undefined)
+    const copy = getErrorCopy(undefined as any)
     expect(copy).toBe(ERROR_COPY.INTERNAL_ERROR)
   })
 })

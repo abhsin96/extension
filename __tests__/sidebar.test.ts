@@ -8,10 +8,14 @@ vi.spyOn(window, 'postMessage').mockImplementation(() => {})
 // Setup
 // ---------------------------------------------------------------------------
 
-let host, shadow, api
+let host: any, shadow: any, api: any
 
-function q(sel) { return shadow.querySelector(sel) }
-function qAll(sel) { return [...shadow.querySelectorAll(sel)] }
+function q(sel: string) {
+  return shadow.querySelector(sel)
+}
+function qAll(sel: string) {
+  return [...shadow.querySelectorAll(sel)]
+}
 
 beforeEach(() => {
   api = createSidebar({
@@ -167,20 +171,20 @@ describe('input', () => {
   })
 
   it('send button enables when input has text', () => {
-    q('.input').value = 'What is this?'
-    q('.input').dispatchEvent(new Event('input', { bubbles: true }))
-    expect(q('.send-btn').disabled).toBe(false)
+    const input = q('.input') as HTMLTextAreaElement
+    input.value = 'What is this?'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    expect((q('.send-btn') as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('Enter key calls onSend with the question text', () => {
     const onSend = vi.fn()
     const s = createSidebar({ onSend })
     document.body.appendChild(s.host)
-    s.host.shadowRoot.querySelector('.input').value = 'What happened?'
-    s.host.shadowRoot.querySelector('.input').dispatchEvent(new Event('input'))
-    s.host.shadowRoot.querySelector('.input').dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
-    )
+    const input = s.host.shadowRoot!.querySelector('.input') as HTMLTextAreaElement
+    input.value = 'What happened?'
+    input.dispatchEvent(new Event('input'))
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     expect(onSend).toHaveBeenCalledWith('What happened?')
     s.host.remove()
   })
@@ -189,9 +193,10 @@ describe('input', () => {
     const onSend = vi.fn()
     const s = createSidebar({ onSend })
     document.body.appendChild(s.host)
-    s.host.shadowRoot.querySelector('.input').value = 'draft'
-    s.host.shadowRoot.querySelector('.input').dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true })
+    const input = s.host.shadowRoot!.querySelector('.input') as HTMLTextAreaElement
+    input.value = 'draft'
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true }),
     )
     expect(onSend).not.toHaveBeenCalled()
     s.host.remove()
@@ -229,13 +234,17 @@ describe('input', () => {
 describe('keyboard shortcuts', () => {
   it('Cmd+L clears input', () => {
     q('.input').value = 'some text'
-    shadow.querySelector('div').dispatchEvent(new KeyboardEvent('keydown', { key: 'l', metaKey: true, bubbles: true }))
+    shadow
+      .querySelector('div')
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'l', metaKey: true, bubbles: true }))
     expect(q('.input').value).toBe('')
   })
 
   it('Ctrl+L clears input', () => {
     q('.input').value = 'some text'
-    shadow.querySelector('div').dispatchEvent(new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, bubbles: true }))
+    shadow
+      .querySelector('div')
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, bubbles: true }))
     expect(q('.input').value).toBe('')
   })
 })
@@ -303,13 +312,19 @@ describe('clear button confirmation', () => {
 
 describe('fullscreen mode', () => {
   it('adds .fullscreen class to host when fullscreenchange fires with element', () => {
-    Object.defineProperty(document, 'fullscreenElement', { value: document.body, configurable: true })
+    Object.defineProperty(document, 'fullscreenElement', {
+      value: document.body,
+      configurable: true,
+    })
     document.dispatchEvent(new Event('fullscreenchange'))
     expect(host.classList.contains('fullscreen')).toBe(true)
   })
 
   it('removes .fullscreen class when exiting fullscreen', () => {
-    Object.defineProperty(document, 'fullscreenElement', { value: document.body, configurable: true })
+    Object.defineProperty(document, 'fullscreenElement', {
+      value: document.body,
+      configurable: true,
+    })
     document.dispatchEvent(new Event('fullscreenchange'))
 
     Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
@@ -361,7 +376,7 @@ describe('theater mode', () => {
 // ---------------------------------------------------------------------------
 
 describe('timestamp links', () => {
-  let onSeek
+  let onSeek: any
 
   beforeEach(() => {
     host.remove()
@@ -374,15 +389,15 @@ describe('timestamp links', () => {
 
   it('renders [mm:ss] as a .ts-link anchor in assistant messages', () => {
     api.addMessage({ id: '1', role: 'assistant', text: 'See [01:23] for details.' })
-    const link = q('.ts-link')
+    const link = q('.ts-link') as HTMLElement
     expect(link).toBeTruthy()
     expect(link.textContent).toBe('[01:23]')
-    expect(link.dataset.sec).toBe('83')
+    expect((link as any).dataset.sec).toBe('83')
   })
 
   it('renders [hh:mm:ss] as a .ts-link anchor', () => {
     api.addMessage({ id: '2', role: 'assistant', text: 'Starts at [01:23:45].' })
-    expect(q('.ts-link').dataset.sec).toBe('5025')
+    expect((q('.ts-link') as any).dataset.sec).toBe('5025')
   })
 
   it('clicking .ts-link calls onSeek with the correct seconds', () => {
@@ -444,16 +459,16 @@ describe('citation block', () => {
   })
 
   it('renders citation timestamp as a clickable ts-link', () => {
-    let onSeek
+    let onSeek: any
     host.remove()
     onSeek = vi.fn()
     const s = createSidebar({ onSend: vi.fn(), onSeek })
     document.body.appendChild(s.host)
     s.addMessage({ id: '4', role: 'assistant', text: 'Answer.', citations: [CITATIONS[0]] })
-    const tsLinks = [...s.host.shadowRoot.querySelectorAll('.citation-item .ts-link')]
+    const tsLinks = [...s.host.shadowRoot!.querySelectorAll('.citation-item .ts-link')]
     expect(tsLinks).toHaveLength(1)
-    expect(tsLinks[0].dataset.sec).toBe('83')
-    tsLinks[0].click()
+    expect((tsLinks[0] as any).dataset.sec).toBe('83')
+    ;(tsLinks[0] as HTMLElement).click()
     expect(onSeek).toHaveBeenCalledWith(83)
     s.host.remove()
   })
@@ -565,7 +580,7 @@ describe('empty states', () => {
     const localShadow = localApi.host.shadowRoot
     document.body.appendChild(localApi.host)
     localApi.showEmptyState('key-missing')
-    localShadow.querySelector('.empty-state-action').click()
+    ;(localShadow!.querySelector('.empty-state-action') as HTMLElement).click()
     expect(onOpenOptions).toHaveBeenCalled()
     localApi.host.remove()
   })

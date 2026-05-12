@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.stubGlobal('chrome', {
-  runtime: { getURL: (path) => `chrome-extension://fake-id/${path}` },
+  runtime: { getURL: (path: string) => `chrome-extension://fake-id/${path}` },
 })
 
 import { injectSeekBridge, seekVideo, SEEK_MSG_TYPE } from '../src/utils/seek_bridge.js'
@@ -11,7 +11,7 @@ import { injectSeekBridge, seekVideo, SEEK_MSG_TYPE } from '../src/utils/seek_br
 // ---------------------------------------------------------------------------
 
 describe('seekVideo', () => {
-  let postMessageSpy
+  let postMessageSpy: any
 
   beforeEach(() => {
     postMessageSpy = vi.spyOn(window, 'postMessage').mockImplementation(() => {})
@@ -23,18 +23,12 @@ describe('seekVideo', () => {
 
   it('calls window.postMessage with the correct type and seconds', () => {
     seekVideo(83)
-    expect(postMessageSpy).toHaveBeenCalledWith(
-      { type: SEEK_MSG_TYPE, sec: 83 },
-      '*',
-    )
+    expect(postMessageSpy).toHaveBeenCalledWith({ type: SEEK_MSG_TYPE, sec: 83 }, '*')
   })
 
   it('forwards the exact seconds value', () => {
     seekVideo(5025)
-    expect(postMessageSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ sec: 5025 }),
-      '*',
-    )
+    expect(postMessageSpy).toHaveBeenCalledWith(expect.objectContaining({ sec: 5025 }), '*')
   })
 })
 
@@ -62,7 +56,7 @@ describe('injectSeekBridge', () => {
 
   it('injected script src points to the bridge file', () => {
     injectSeekBridge()
-    const script = document.getElementById(BRIDGE_ID)
-    expect(script.src).toContain('seek_bridge_injected.js')
+    const script = document.getElementById(BRIDGE_ID) as HTMLScriptElement
+    expect(script!.src).toContain('seek_bridge_injected.js')
   })
 })

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { refresh } from '../src/popup.ts'
+import { refresh } from '../src/popup.js'
 
 // Mock chrome API
 const mockSendMessage = vi.fn()
@@ -16,14 +16,14 @@ global.chrome = {
   tabs: {
     query: vi.fn(),
   },
-}
+} as any
 
 global.document = {
   getElementById: mockGetElementById,
-}
+} as any
 
 describe('popup refresh()', () => {
-  let mockDotBackend, mockValBackend, mockDotApikey, mockValApikey
+  let mockDotBackend: any, mockValBackend: any, mockDotApikey: any, mockValApikey: any
 
   beforeEach(() => {
     // Create mock DOM elements

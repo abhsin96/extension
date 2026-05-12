@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import apiClient, { API_BASE, DEFAULT_API_BASE, _setBaseUrl, getBaseUrl } from '../src/api/client.js'
+import apiClient, {
+  API_BASE,
+  DEFAULT_API_BASE,
+  _setBaseUrl,
+  getBaseUrl,
+} from '../src/api/client.js'
 import {
   ApiError,
   BackendUnreachableError,
@@ -12,7 +17,7 @@ import {
 // Fetch mock helpers
 // ---------------------------------------------------------------------------
 
-function mockFetch(body, { ok = true, status = 200 } = {}) {
+function mockFetch(body: any, { ok = true, status = 200 }: { ok?: boolean; status?: number } = {}) {
   return vi.fn().mockResolvedValue({
     ok,
     status,
@@ -38,7 +43,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 function lastCallHeaders() {
-  return fetch.mock.calls[0][1]?.headers ?? {}
+  return (fetch as any).mock.calls[0][1]?.headers ?? {}
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +53,7 @@ function lastCallHeaders() {
 describe('pingHealth()', () => {
   it('calls GET /health', async () => {
     await apiClient.pingHealth()
-    const [url, opts] = fetch.mock.calls[0]
+    const [url, opts] = (fetch as any).mock.calls[0]
     expect(url).toBe(`${API_BASE}/health`)
     expect(opts.method).toBeUndefined() // no method = GET
   })
@@ -82,7 +87,7 @@ describe('ingest()', () => {
   it('calls POST /ingest', async () => {
     vi.stubGlobal('fetch', mockFetch(INGEST_RESPONSE))
     await apiClient.ingest('vid1')
-    const [url, opts] = fetch.mock.calls[0]
+    const [url, opts] = (fetch as any).mock.calls[0]
     expect(url).toBe(`${API_BASE}/ingest`)
     expect(opts.method).toBe('POST')
   })
@@ -90,21 +95,21 @@ describe('ingest()', () => {
   it('sends video_id in the request body', async () => {
     vi.stubGlobal('fetch', mockFetch(INGEST_RESPONSE))
     await apiClient.ingest('abc123')
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    const body = JSON.parse((fetch as any).mock.calls[0][1].body)
     expect(body.video_id).toBe('abc123')
   })
 
   it('sends force: false by default', async () => {
     vi.stubGlobal('fetch', mockFetch(INGEST_RESPONSE))
     await apiClient.ingest('vid1')
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    const body = JSON.parse((fetch as any).mock.calls[0][1].body)
     expect(body.force).toBe(false)
   })
 
   it('sends force: true when specified', async () => {
     vi.stubGlobal('fetch', mockFetch(INGEST_RESPONSE))
     await apiClient.ingest('vid1', { force: true })
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    const body = JSON.parse((fetch as any).mock.calls[0][1].body)
     expect(body.force).toBe(true)
   })
 
@@ -155,7 +160,7 @@ describe('ask()', () => {
   it('calls POST /query with video_id in the body', async () => {
     vi.stubGlobal('fetch', mockFetch(ASK_BACKEND_RESPONSE))
     await apiClient.ask('vid1', 'What is the answer?')
-    const [url, opts] = fetch.mock.calls[0]
+    const [url, opts] = (fetch as any).mock.calls[0]
     expect(url).toBe(`${API_BASE}/query`)
     expect(opts.method).toBe('POST')
     expect(JSON.parse(opts.body).video_id).toBe('vid1')
@@ -164,21 +169,21 @@ describe('ask()', () => {
   it('sends question in the request body', async () => {
     vi.stubGlobal('fetch', mockFetch(ASK_BACKEND_RESPONSE))
     await apiClient.ask('vid1', 'What is the answer?')
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    const body = JSON.parse((fetch as any).mock.calls[0][1].body)
     expect(body.question).toBe('What is the answer?')
   })
 
   it('sends k: 5 by default', async () => {
     vi.stubGlobal('fetch', mockFetch(ASK_BACKEND_RESPONSE))
     await apiClient.ask('vid1', 'q?')
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    const body = JSON.parse((fetch as any).mock.calls[0][1].body)
     expect(body.k).toBe(5)
   })
 
   it('sends custom k when specified', async () => {
     vi.stubGlobal('fetch', mockFetch(ASK_BACKEND_RESPONSE))
     await apiClient.ask('vid1', 'q?', [], { k: 3 })
-    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    const body = JSON.parse((fetch as any).mock.calls[0][1].body)
     expect(body.k).toBe(3)
   })
 
@@ -295,7 +300,7 @@ describe('configurable base URL', () => {
     _setBaseUrl('http://custom:9000')
     vi.stubGlobal('fetch', mockFetch({ status: 'ok' }))
     await apiClient.pingHealth()
-    expect(fetch.mock.calls[0][0]).toBe('http://custom:9000/health')
+    expect((fetch as any).mock.calls[0][0]).toBe('http://custom:9000/health')
   })
 
   it('resets to DEFAULT_API_BASE after _setBaseUrl(DEFAULT_API_BASE)', async () => {
@@ -303,13 +308,13 @@ describe('configurable base URL', () => {
     _setBaseUrl(DEFAULT_API_BASE)
     vi.stubGlobal('fetch', mockFetch({ status: 'ok' }))
     await apiClient.pingHealth()
-    expect(fetch.mock.calls[0][0]).toBe(`${DEFAULT_API_BASE}/health`)
+    expect((fetch as any).mock.calls[0][0]).toBe(`${DEFAULT_API_BASE}/health`)
   })
 
   it('custom URL is used for POST requests', async () => {
     _setBaseUrl('http://custom:9000')
     vi.stubGlobal('fetch', mockFetch(INGEST_RESPONSE))
     await apiClient.ingest('vid1')
-    expect(fetch.mock.calls[0][0]).toBe('http://custom:9000/ingest')
+    expect((fetch as any).mock.calls[0][0]).toBe('http://custom:9000/ingest')
   })
 })

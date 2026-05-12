@@ -12,15 +12,17 @@ const OPTIONS_HTML = `
 // Helpers
 // ---------------------------------------------------------------------------
 
-let sendMessage
+let sendMessage: any
 
-function q(id) { return document.getElementById(id) }
+function q(id: string) {
+  return document.getElementById(id)
+}
 
 function makePingResponse() {
   return { ok: true, data: { status: 'ok' } }
 }
 
-function makeChromeMock(sendMessage) {
+function makeChromeMock(sendMessage: any) {
   return {
     runtime: { sendMessage },
     storage: {
@@ -51,8 +53,8 @@ afterEach(() => {
 describe('status badge on load', () => {
   it('shows ok style when backend is running', async () => {
     await loadOptions(makePingResponse())
-    expect(q('backend-status').className).toBe('status-ok')
-    expect(q('backend-status').textContent).toContain('running')
+    expect(q('backend-status')!.className).toBe('status-ok')
+    expect(q('backend-status')!.textContent).toContain('running')
   })
 
   it('shows error style when backend is unreachable', async () => {
@@ -62,6 +64,6 @@ describe('status badge on load', () => {
     document.body.innerHTML = OPTIONS_HTML
     await import('../src/options.js')
     await new Promise((r) => setTimeout(r, 0))
-    expect(q('backend-status').className).toBe('status-error')
+    expect(q('backend-status')!.className).toBe('status-error')
   })
 })

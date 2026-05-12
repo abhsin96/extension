@@ -25,9 +25,9 @@ export default [
     },
   },
 
-  // Block 2: JS test files — parse-only, no project reference
+  // Block 2: TS test files — parse-only, no project reference
   {
-    files: ['__tests__/**/*.js', 'src/**/*.js'],
+    files: ['__tests__/**/*.ts', 'src/**/*.js'],
     languageOptions: {
       parser: tsparser,
       globals: { ...globals.browser, chrome: 'readonly' },
@@ -40,6 +40,7 @@ export default [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'off',
     },
   },

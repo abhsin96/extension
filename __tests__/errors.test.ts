@@ -235,8 +235,15 @@ describe('UnknownError', () => {
 import { afterEach, beforeEach, vi } from 'vitest'
 import apiClient from '../src/api/client.js'
 
-function mockFetch(body, { ok = true, status = 200 } = {}) {
-  return vi.fn().mockResolvedValue({ ok, status, headers: { get: vi.fn(() => null) }, json: vi.fn().mockResolvedValue(body) })
+function mockFetch(body: any, { ok = true, status = 200 }: { ok?: boolean; status?: number } = {}) {
+  return vi
+    .fn()
+    .mockResolvedValue({
+      ok,
+      status,
+      headers: { get: vi.fn(() => null) },
+      json: vi.fn().mockResolvedValue(body),
+    })
 }
 
 beforeEach(() => vi.stubGlobal('fetch', mockFetch({ status: 'ok' })))
