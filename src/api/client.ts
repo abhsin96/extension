@@ -23,9 +23,6 @@ import type { AskResponse, Citation, HealthResponse, IngestResponse } from './ty
 /** Default backend URL used when nothing is stored in chrome.storage.sync. */
 export const DEFAULT_API_BASE = 'http://localhost:8000'
 
-/** @deprecated Use DEFAULT_API_BASE. Kept for backward compatibility. */
-export const API_BASE = DEFAULT_API_BASE
-
 /** Current base URL — updated from chrome.storage.sync and via _setBaseUrl(). */
 let _baseUrl = DEFAULT_API_BASE
 
@@ -103,12 +100,12 @@ async function _request(path: string, options: RequestInit = {}): Promise<unknow
 
 // Raw shape of the /query response before it is normalised to AskResponse.
 interface RawQueryResponse {
-  answer: string;
-  refused?: boolean;
-  citations?: Citation[];
-  sources?: Citation[];
-  tokens_used?: number;
-  thread_id?: string | null;
+  answer: string
+  refused?: boolean
+  citations?: Citation[]
+  sources?: Citation[]
+  tokens_used?: number
+  thread_id?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -182,7 +179,9 @@ const apiClient = {
       try {
         const body = (await response.json()) as { detail?: string }
         if (body.detail) detail = body.detail
-      } catch { /* keep status-code fallback */ }
+      } catch {
+        /* keep status-code fallback */
+      }
       const { status } = response
       if (status === 401 || status === 403) throw new ApiKeyMissingError(detail)
       if (status === 429) throw new RateLimitedError(detail)
@@ -259,7 +258,7 @@ const apiClient = {
   ): Promise<AskResponse> {
     let raw: RawQueryResponse
     try {
-      raw = await _request('/query', {
+      raw = (await _request('/query', {
         method: 'POST',
         body: JSON.stringify({
           video_id: videoId,
@@ -273,7 +272,7 @@ const apiClient = {
           conversation_history: threadId ? [] : history,
           thread_id: threadId,
         }),
-      }) as RawQueryResponse
+      })) as RawQueryResponse
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         throw new VideoNotIngestedError(videoId)

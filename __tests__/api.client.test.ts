@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import apiClient, {
-  API_BASE,
-  DEFAULT_API_BASE,
-  _setBaseUrl,
-  getBaseUrl,
-} from '../src/api/client.js'
+import apiClient, { DEFAULT_API_BASE, _setBaseUrl, getBaseUrl } from '../src/api/client.js'
 import {
   ApiError,
   BackendUnreachableError,
@@ -54,7 +49,7 @@ describe('pingHealth()', () => {
   it('calls GET /health', async () => {
     await apiClient.pingHealth()
     const [url, opts] = (fetch as any).mock.calls[0]
-    expect(url).toBe(`${API_BASE}/health`)
+    expect(url).toBe(`${DEFAULT_API_BASE}/health`)
     expect(opts.method).toBeUndefined() // no method = GET
   })
 
@@ -88,7 +83,7 @@ describe('ingest()', () => {
     vi.stubGlobal('fetch', mockFetch(INGEST_RESPONSE))
     await apiClient.ingest('vid1')
     const [url, opts] = (fetch as any).mock.calls[0]
-    expect(url).toBe(`${API_BASE}/ingest`)
+    expect(url).toBe(`${DEFAULT_API_BASE}/ingest`)
     expect(opts.method).toBe('POST')
   })
 
@@ -161,7 +156,7 @@ describe('ask()', () => {
     vi.stubGlobal('fetch', mockFetch(ASK_BACKEND_RESPONSE))
     await apiClient.ask('vid1', 'What is the answer?')
     const [url, opts] = (fetch as any).mock.calls[0]
-    expect(url).toBe(`${API_BASE}/query`)
+    expect(url).toBe(`${DEFAULT_API_BASE}/query`)
     expect(opts.method).toBe('POST')
     expect(JSON.parse(opts.body).video_id).toBe('vid1')
   })
@@ -281,10 +276,6 @@ describe('Content-Type header', () => {
 describe('configurable base URL', () => {
   afterEach(() => {
     _setBaseUrl(DEFAULT_API_BASE)
-  })
-
-  it('API_BASE equals DEFAULT_API_BASE', () => {
-    expect(API_BASE).toBe(DEFAULT_API_BASE)
   })
 
   it('getBaseUrl() returns DEFAULT_API_BASE by default', () => {
