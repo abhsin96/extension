@@ -54,6 +54,20 @@ btnSaveUrl?.addEventListener('click', async () => {
   }
 
   try {
+    // Request permission for the new backend URL
+    const granted = await chrome.permissions.request({
+      origins: [url + '/*'],
+    })
+
+    if (!granted) {
+      if (statusUrlEl) {
+        statusUrlEl.textContent = 'Permission denied — Chrome blocked access to that URL.'
+        statusUrlEl.className = 'error'
+      }
+      return
+    }
+
+    // Only save if permission was granted
     await chrome.storage.sync.set({ backendUrl: url })
     if (statusUrlEl) statusUrlEl.textContent = 'Backend URL saved.'
   } catch (err) {

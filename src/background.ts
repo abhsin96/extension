@@ -32,6 +32,21 @@ chrome.storage.session
   })
   .catch(() => {})
 
+// Ensure backend URL permission exists on startup
+if (chrome?.storage?.sync && chrome?.permissions) {
+  chrome.storage.sync.get({ backendUrl: null }, async ({ backendUrl }) => {
+    if (backendUrl) {
+      const hasPermission = await chrome.permissions.contains({
+        origins: [backendUrl + '/*'],
+      })
+      if (!hasPermission) {
+        console.warn('Backend URL permission missing:', backendUrl)
+        // apiClient will surface BACKEND_UNREACHABLE when requests fail
+      }
+    }
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Handlers — each returns a Promise that resolves with the data to send back
 // ---------------------------------------------------------------------------
