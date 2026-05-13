@@ -49,7 +49,6 @@ export function createQaSession({
 }: QaSessionDeps): QaSession {
   const _ingestedIds = new Set<string>()
   const _threadIds = new Map<string, string>()
-  let _currentRef: { cancelled: boolean } | null = null
   let _healthTimer: ReturnType<typeof setInterval> | null = null
 
   const sm = createStateMachine()
@@ -116,7 +115,6 @@ export function createQaSession({
     sm.transition(STATES.ERROR, { code })
     sidebar.setLoading(false)
     sidebar.clearCancellable()
-    _currentRef = null
 
     const copy = getErrorCopy(code)
     const text = copy.message + (copy.action ? ` ${copy.action}` : '')
@@ -163,7 +161,6 @@ export function createQaSession({
     }
 
     const ref = { cancelled: false }
-    _currentRef = ref
 
     sidebar.addMessage({ id: msgId(), role: 'user', text: question })
 
@@ -173,7 +170,6 @@ export function createQaSession({
       sidebar.setLoading(true, { text: 'Preparing transcript…' })
       sidebar.setCancellable(() => {
         ref.cancelled = true
-        _currentRef = null
         sm.transition(STATES.IDLE)
         sidebar.setLoading(false)
         sidebar.clearCancellable()
@@ -217,7 +213,6 @@ export function createQaSession({
     sidebar.setLoading(true)
     sidebar.setCancellable(() => {
       ref.cancelled = true
-      _currentRef = null
       sm.transition(STATES.IDLE)
       sidebar.removeMessage(skeletonId)
       sidebar.setLoading(false)
@@ -245,7 +240,6 @@ export function createQaSession({
     sm.transition(STATES.IDLE)
     sidebar.setLoading(false)
     sidebar.clearCancellable()
-    _currentRef = null
 
     if (res?.ok) {
       const answer = (res.data?.['answer'] as string) ?? ''
