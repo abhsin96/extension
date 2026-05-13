@@ -140,7 +140,11 @@ const HANDLERS: Record<string, MessageHandler> = {
  * Central message listener.
  * Returning `true` keeps the message channel open while the async handler runs.
  */
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const msgWithTab =
+    (message as { type?: string })?.type === 'INGEST_VIDEO' && sender.tab?.id !== undefined
+      ? { ...(message as Record<string, unknown>), tabId: sender.tab.id }
+      : message
   const handler = HANDLERS[(message as { type?: string })?.type ?? '']
 
   if (!handler) {
@@ -154,7 +158,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return false
   }
 
-  handler(message as Record<string, unknown>)
+  handler(msgWithTab as Record<string, unknown>)
     .then((data) => sendResponse({ ok: true, data }))
     .catch((err: unknown) =>
       sendResponse({

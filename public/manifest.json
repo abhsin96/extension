@@ -6,7 +6,7 @@
 
   "permissions": ["activeTab", "storage", "scripting"],
 
-  "host_permissions": ["*://*.youtube.com/*"],
+  "host_permissions": ["*://*.youtube.com/*", "http://localhost:8000/*"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
 
   "background": {

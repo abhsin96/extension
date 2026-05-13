@@ -51,15 +51,7 @@ const sidebar = createSidebar({
 
 const session = createQaSession({
   sidebar,
-  sendMessage: async (msg) => {
-    // Inject current tab ID for INGEST_VIDEO messages to enable progress streaming
-    if (msg.type === 'INGEST_VIDEO') {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
-      const tabId = tabs[0]?.id
-      return chrome.runtime.sendMessage({ ...msg, tabId })
-    }
-    return chrome.runtime.sendMessage(msg)
-  },
+  sendMessage: (msg) => chrome.runtime.sendMessage(msg),
   storage: historyStorage,
 })
 
