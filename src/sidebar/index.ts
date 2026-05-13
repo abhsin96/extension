@@ -1,4 +1,8 @@
-import { parseTimestamp, formatTimestamp } from './utils/timestamp.js'
+import { createMessageList } from './MessageList.js'
+import { createInputArea } from './InputArea.js'
+import { createToast, type ShowToastOptions } from './Toast.js'
+import { createEmptyState } from './EmptyState.js'
+import { createToggleButton } from './ToggleButton.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,25 +31,8 @@ export interface FinalizeMessageOptions {
   animate?: boolean
 }
 
-export interface ShowToastOptions {
-  text?: string
-  action?: string
-  onAction?: () => void
-  severity?: 'error' | 'warn' | 'info'
-  autoDismissMs?: number
-}
-
 interface LoadingOptions {
   text?: string
-}
-
-interface EmptyStateSpec {
-  icon?: string
-  heading: string
-  body: string
-  action?: string
-  actionLabel?: string
-  onAction?: () => void
 }
 
 interface SidebarCallbacks {
@@ -82,8 +69,6 @@ export interface SidebarApi {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-type Token = { type: 'char'; ch: string } | { type: 'link'; el: HTMLAnchorElement }
 
 function _injectFonts(): void {
   const fonts = [
@@ -532,28 +517,12 @@ export function createSidebar({
   const historyBtn = $<HTMLButtonElement>('.history-btn')
   const settingsBtn = $<HTMLButtonElement>('.settings-btn')
 
-  let _open = false
-  let _toastTimer: ReturnType<typeof setTimeout> | null = null
   let _loading = false
   let _keyRequired = false
   let loadingEl: HTMLElement | null = null
   let _clearPending = false
   let _clearTimer: ReturnType<typeof setTimeout> | null = null
   let _onCancel: (() => void) | null = null
-
-  // -- Open / Close --
-  function open(): void {
-    _open = true
-    host.classList.add('open')
-    textarea.focus()
-  }
-
-  function close(): void {
-    _open = false
-    host.classList.remove('open')
-    _resetClearPending()
-    onClose?.()
-  }
 
   // -- Clear confirmation (two-tap: first tap → "Sure?", second tap → confirm) --
   function _resetClearPending(): void {
@@ -564,10 +533,45 @@ export function createSidebar({
     clearBtn.setAttribute('aria-label', 'Clear conversation')
   }
 
+  // Create modules
+  const messageListApi = createMessageList({
+    messageList,
+    onSeek,
+    onClear: () => {
+      onClear?.()
+    },
+  })
+
+  const inputAreaApi = createInputArea({
+    textarea,
+    sendBtn,
+    shadow,
+    onSend,
+    onClose: () => toggleButtonApi.close(),
+    loading: () => _loading,
+    keyRequired: () => _keyRequired,
+  }) as { clearInput: () => void; updateSendBtn: () => void }
+
+  const toastApi = createToast({ toastEl })
+
+  const emptyStateApi = createEmptyState({
+    messageList,
+    onOpenOptions,
+  })
+
+  const toggleButtonApi = createToggleButton({
+    toggleBtn,
+    sidebarEl,
+    host,
+    textarea,
+    onClose,
+    onClearPending: _resetClearPending,
+  })
+
   // -- Loading indicator --
   function setLoading(loading: boolean, { text = 'Thinking' }: LoadingOptions = {}): void {
     _loading = loading
-    updateSendBtn()
+    inputAreaApi.updateSendBtn()
     if (loading && !loadingEl) {
       loadingEl = document.createElement('div')
       loadingEl.className = 'loading'
@@ -591,354 +595,14 @@ export function createSidebar({
     cancelBtn.hidden = true
   }
 
-  // -- Toast banner --
-  function showToast({
-    text,
-    action,
-    onAction,
-    severity = 'error',
-    autoDismissMs,
-  }: ShowToastOptions = {}): void {
-    clearTimeout(_toastTimer ?? undefined)
-    toastEl.innerHTML = ''
-    toastEl.className = `toast toast--${severity}`
-    const msg = document.createElement('span')
-    msg.textContent = text ?? ''
-    toastEl.appendChild(msg)
-    if (action) {
-      const btn = document.createElement('button')
-      btn.className = 'toast-action'
-      btn.setAttribute('data-testid', 'toast-action')
-      btn.textContent = action
-      if (onAction) btn.addEventListener('click', onAction)
-      toastEl.appendChild(btn)
-    }
-    toastEl.hidden = false
-    const dismiss = autoDismissMs ?? (severity === 'info' ? 3000 : severity === 'warn' ? 5000 : 0)
-    if (dismiss > 0) {
-      _toastTimer = setTimeout(hideToast, dismiss)
-    }
-  }
-
-  function hideToast(): void {
-    clearTimeout(_toastTimer ?? undefined)
-    toastEl.hidden = true
-    toastEl.innerHTML = ''
-  }
-
-  // -- Empty state cards (shown in message list when no conversation) --
-  const EMPTY_STATE_CONTENT: Record<string, EmptyStateSpec> = {
-    'no-captions': {
-      icon: '🚫',
-      heading: 'No captions available',
-      body: 'This video has no captions. Try a video with auto-generated captions enabled.',
-    },
-    'backend-down': {
-      icon: '🔌',
-      heading: 'Backend is not running',
-      body: 'Start your local backend to use YouTube Q&A.',
-      action: 'cd backend && make run',
-    },
-    'key-missing': {
-      icon: '🔑',
-      heading: 'API key required',
-      body: 'Configure your OpenAI API key in the extension options.',
-      actionLabel: 'Configure →',
-      onAction: () => onOpenOptions?.(),
-    },
-  }
-
-  function showEmptyState(type: string): void {
-    clearEmptyState()
-    const spec = EMPTY_STATE_CONTENT[type]
-    if (!spec) return
-    const div = document.createElement('div')
-    div.className = `empty-state empty-state--${type}`
-    div.setAttribute('role', 'status')
-    if (spec.icon) {
-      const icon = document.createElement('div')
-      icon.className = 'empty-state-icon'
-      icon.textContent = spec.icon
-      div.appendChild(icon)
-    }
-    const heading = document.createElement('p')
-    heading.className = 'empty-state-heading'
-    heading.textContent = spec.heading
-    div.appendChild(heading)
-    const body = document.createElement('p')
-    body.className = 'empty-state-body'
-    body.textContent = spec.body
-    div.appendChild(body)
-    if (spec.action) {
-      const code = document.createElement('code')
-      code.style.cssText = 'display:block;margin-top:6px;font-size:12px;color:#606060;'
-      code.textContent = spec.action
-      div.appendChild(code)
-    }
-    if (spec.actionLabel) {
-      const btn = document.createElement('button')
-      btn.className = 'empty-state-action'
-      btn.textContent = spec.actionLabel
-      if (spec.onAction) btn.addEventListener('click', spec.onAction)
-      div.appendChild(btn)
-    }
-    messageList.appendChild(div)
-  }
-
-  function clearEmptyState(): void {
-    messageList.querySelector('.empty-state, .welcome-card')?.remove()
-  }
-
-  // -- Messages --
-
-  // Regex that identifies bracketed timestamps: [mm:ss] or [hh:mm:ss] in message text.
-  const TS_RE = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g
-
-  function _makeSeekLink(raw: string, sec: number): HTMLAnchorElement {
-    const a = document.createElement('a')
-    a.className = 'ts-link'
-    a.dataset.sec = String(sec)
-    a.textContent = raw
-    a.setAttribute('role', 'button')
-    a.setAttribute('tabindex', '0')
-    const handler = () => onSeek?.(sec)
-    a.addEventListener('click', handler)
-    a.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handler()
-    })
-    return a
-  }
-
-  function _renderText(container: HTMLElement, text: string): void {
-    TS_RE.lastIndex = 0
-    let last = 0
-    let m: RegExpExecArray | null
-    while ((m = TS_RE.exec(text)) !== null) {
-      if (m.index > last) container.appendChild(document.createTextNode(text.slice(last, m.index)))
-      const sec = parseTimestamp(m[1])
-      container.appendChild(sec !== null ? _makeSeekLink(m[0], sec) : document.createTextNode(m[0]))
-      last = m.index + m[0].length
-    }
-    if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)))
-  }
-
-  function _buildCitationBlock(citations: DisplayCitation[]): HTMLElement | null {
-    if (!citations || citations.length === 0) return null
-    const details = document.createElement('details')
-    details.className = 'citations'
-    const summary = document.createElement('summary')
-    summary.textContent = `${citations.length} source${citations.length !== 1 ? 's' : ''}`
-    details.appendChild(summary)
-    const list = document.createElement('ul')
-    list.className = 'citation-list'
-    for (const c of citations) {
-      const li = document.createElement('li')
-      li.className = 'citation-item'
-      const sec =
-        typeof c.start_ts === 'number' ? c.start_ts : parseTimestamp(String(c.start_ts ?? ''))
-      if (sec !== null) {
-        li.appendChild(_makeSeekLink(`[${formatTimestamp(sec)}]`, sec))
-        li.appendChild(document.createTextNode(' '))
-      }
-      const span = document.createElement('span')
-      span.className = 'citation-text'
-      span.textContent = c.text ?? ''
-      li.appendChild(span)
-      list.appendChild(li)
-    }
-    details.appendChild(list)
-    return details
-  }
-
-  function _isRichRole(role: string, refused: boolean): boolean {
-    return role === 'assistant' || refused
-  }
-
-  // Reveal *text* into *bubble* one character at a time, handling timestamp links.
-  // Returns a cancel() function. Citations are appended via onComplete().
-  function _typewriterReveal(
-    bubble: HTMLElement,
-    text: string,
-    { onComplete, onTick }: { onComplete?: () => void; onTick?: () => void } = {},
-  ): () => void {
-    TS_RE.lastIndex = 0
-    const tokens: Token[] = []
-    let last = 0
-    let m: RegExpExecArray | null
-    while ((m = TS_RE.exec(text)) !== null) {
-      for (const ch of text.slice(last, m.index)) tokens.push({ type: 'char', ch })
-      const sec = parseTimestamp(m[1])
-      if (sec !== null) {
-        tokens.push({ type: 'link', el: _makeSeekLink(m[0], sec) })
-      } else {
-        for (const ch of m[0]) tokens.push({ type: 'char', ch })
-      }
-      last = m.index + m[0].length
-    }
-    for (const ch of text.slice(last)) tokens.push({ type: 'char', ch })
-
-    // Scale speed so the animation lasts ~1.5 s regardless of length.
-    const charsPerFrame = Math.max(2, Math.ceil(tokens.length / 90))
-
-    bubble.classList.add('message-bubble--typing')
-    let i = 0
-    let cancelled = false
-    let currentTextNode: Text | null = null
-    let rafId: number
-
-    function tick(): void {
-      if (cancelled) return
-      for (let b = 0; b < charsPerFrame && i < tokens.length; b++, i++) {
-        const t = tokens[i]
-        if (t.type === 'char') {
-          if (currentTextNode) {
-            currentTextNode.nodeValue += t.ch
-          } else {
-            currentTextNode = document.createTextNode(t.ch)
-            bubble.appendChild(currentTextNode)
-          }
-        } else {
-          currentTextNode = null
-          bubble.appendChild(t.el)
-        }
-      }
-      onTick?.()
-      if (i < tokens.length) {
-        rafId = requestAnimationFrame(tick)
-      } else {
-        bubble.classList.remove('message-bubble--typing')
-        onComplete?.()
-      }
-    }
-
-    rafId = requestAnimationFrame(tick)
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(rafId)
-      bubble.classList.remove('message-bubble--typing')
-    }
-  }
-
-  function addMessage({ id, role, text, refused = false, citations = [] }: AddMessageOptions): HTMLElement {
-    clearEmptyState()
-    const msgDiv = document.createElement('div')
-    const effectiveRole = refused ? 'refusal' : role
-    msgDiv.className = `message message--${effectiveRole}`
-    msgDiv.dataset.id = id
-    msgDiv.dataset.role = role
-
-    const bubble = document.createElement('div')
-    bubble.className = 'message-bubble'
-    if (_isRichRole(role, refused)) {
-      _renderText(bubble, text)
-    } else {
-      bubble.textContent = text
-    }
-    msgDiv.appendChild(bubble)
-
-    if (_isRichRole(role, refused)) {
-      const cit = _buildCitationBlock(citations)
-      if (cit) msgDiv.appendChild(cit)
-    }
-
-    messageList.appendChild(msgDiv)
-    messageList.scrollTop = messageList.scrollHeight
-    return msgDiv
-  }
-
-  function addSkeletonMessage(id: string): HTMLElement {
-    const msgDiv = document.createElement('div')
-    msgDiv.className = 'message message--skeleton message--assistant'
-    msgDiv.dataset.id = id
-    const bubble = document.createElement('div')
-    bubble.className = 'message-bubble'
-    bubble.textContent = ' '
-    msgDiv.appendChild(bubble)
-    messageList.appendChild(msgDiv)
-    messageList.scrollTop = messageList.scrollHeight
-    return msgDiv
-  }
-
-  function finalizeMessage(
-    id: string,
-    { role, text, refused = false, citations = [], animate = false }: FinalizeMessageOptions,
-  ): HTMLElement {
-    const el = messageList.querySelector<HTMLElement>(`[data-id="${id}"]`)
-    if (!el) return addMessage({ id, role, text, refused, citations })
-    const effectiveRole = refused ? 'refusal' : role
-    el.className = `message message--${effectiveRole}`
-    el.dataset.role = role
-    const bubble = el.querySelector<HTMLElement>('.message-bubble')!
-    bubble.innerHTML = ''
-    el.querySelector('.citations')?.remove()
-
-    if (animate && _isRichRole(role, refused)) {
-      _typewriterReveal(bubble, text, {
-        onTick: () => {
-          messageList.scrollTop = messageList.scrollHeight
-        },
-        onComplete: () => {
-          const cit = _buildCitationBlock(citations)
-          if (cit) el.appendChild(cit)
-          messageList.scrollTop = messageList.scrollHeight
-        },
-      })
-    } else {
-      if (_isRichRole(role, refused)) {
-        _renderText(bubble, text)
-      } else {
-        bubble.textContent = text
-      }
-      const cit = _buildCitationBlock(citations)
-      if (cit) el.appendChild(cit)
-    }
-    return el
-  }
-
-  function removeMessage(id: string): void {
-    messageList.querySelector(`[data-id="${id}"]`)?.remove()
-  }
-
-  function clearMessages(): void {
-    messageList.innerHTML = ''
-    loadingEl = null
-    onClear?.()
-  }
-
   // -- API key required gate --
   function setApiKeyRequired(required: boolean): void {
     _keyRequired = !!required
-    updateSendBtn()
-  }
-
-  // -- Input --
-  function updateSendBtn(): void {
-    sendBtn.disabled = _loading || _keyRequired || textarea.value.trim() === ''
-  }
-
-  function autoGrow(): void {
-    textarea.style.height = 'auto'
-    const lineH = parseInt(getComputedStyle(textarea).lineHeight) || 20
-    textarea.style.height = Math.min(textarea.scrollHeight, lineH * 4) + 'px'
-  }
-
-  function clearInput(): void {
-    textarea.value = ''
-    textarea.style.height = 'auto'
-    updateSendBtn()
-  }
-
-  function handleSend(): void {
-    const text = textarea.value.trim()
-    if (!text || _loading) return
-    clearInput()
-    onSend?.(text)
+    inputAreaApi.updateSendBtn()
   }
 
   // -- Event wiring --
-  toggleBtn.addEventListener('click', () => (_open ? close() : open()))
-  closeBtn.addEventListener('click', close)
-  sendBtn.addEventListener('click', handleSend)
+  closeBtn.addEventListener('click', () => toggleButtonApi.close())
   cancelBtn.addEventListener('click', () => {
     if (_onCancel) _onCancel()
   })
@@ -957,9 +621,17 @@ export function createSidebar({
       const q = _CHIP_QUESTIONS[chip.dataset.chip ?? '']
       if (!q) return
       textarea.value = q
-      autoGrow()
-      updateSendBtn()
-      handleSend()
+      // Auto-grow logic
+      textarea.style.height = 'auto'
+      const lineH = parseInt(getComputedStyle(textarea).lineHeight) || 20
+      textarea.style.height = Math.min(textarea.scrollHeight, lineH * 4) + 'px'
+      inputAreaApi.updateSendBtn()
+      // Send
+      const text = textarea.value.trim()
+      if (text && !_loading) {
+        inputAreaApi.clearInput()
+        onSend?.(text)
+      }
     })
   })
 
@@ -973,100 +645,36 @@ export function createSidebar({
       return
     }
     _resetClearPending()
-    clearMessages()
+    messageListApi.clearMessages()
   })
 
-  textarea.addEventListener('input', () => {
-    autoGrow()
-    updateSendBtn()
-  })
-
-  textarea.addEventListener('keydown', (e) => {
-    e.stopPropagation()
-
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-    if (e.key === 'Escape') close()
-  })
-
-  textarea.addEventListener('keyup', (e) => e.stopPropagation())
-  textarea.addEventListener('keypress', (e) => e.stopPropagation())
-
-  // Cmd/Ctrl+L clears input from anywhere inside the wrapper div
-  wrapper.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
-      e.preventDefault()
-      clearInput()
-    }
-  })
-
-  // Stop ALL keyboard events from propagating to YouTube when sidebar is open
-  sidebarEl.addEventListener('keydown', (e) => {
-    e.stopPropagation()
-    if (e.key === 'Escape') close()
-  })
-
-  // Fullscreen — hide when browser enters fullscreen
-  document.addEventListener('fullscreenchange', () => {
-    host.classList.toggle('fullscreen', !!document.fullscreenElement)
-  })
-
-  // Theater mode — watch ytd-watch-flexy for the `theater` attribute.
-  function _syncTheater(): void {
-    const flexy = document.querySelector('ytd-watch-flexy')
-    host.classList.toggle('theater', flexy?.hasAttribute('theater') ?? false)
+  function clearEmptyStateWrapper(): void {
+    emptyStateApi.clearEmptyState()
   }
-
-  let _flexyObserver: MutationObserver | null = null
-
-  function _attachFlexyObserver(): void {
-    const flexy = document.querySelector('ytd-watch-flexy')
-    if (!flexy || _flexyObserver) return
-    _flexyObserver = new MutationObserver(_syncTheater)
-    _flexyObserver.observe(flexy, { attributes: true, attributeFilter: ['theater'] })
-    _syncTheater()
-  }
-
-  const _bodyObserver = new MutationObserver(() => {
-    _attachFlexyObserver()
-    _syncTheater()
-  })
-  _bodyObserver.observe(document.body, { childList: true, subtree: true })
-  _attachFlexyObserver()
-
-  function showToggleButton(): void {
-    toggleBtn.style.display = 'flex'
-  }
-
-  function hideToggleButton(): void {
-    toggleBtn.style.display = 'none'
-    if (_open) close()
-  }
-
-  hideToggleButton()
 
   return {
     host,
-    open,
-    close,
-    addMessage,
-    addSkeletonMessage,
-    finalizeMessage,
-    removeMessage,
-    clearMessages,
-    clearInput,
+    open: () => toggleButtonApi.open(),
+    close: () => toggleButtonApi.close(),
+    addMessage: (opts) => {
+      clearEmptyStateWrapper()
+      return messageListApi.addMessage(opts)
+    },
+    addSkeletonMessage: (id) => messageListApi.addSkeletonMessage(id),
+    finalizeMessage: (id, opts) => messageListApi.finalizeMessage(id, opts),
+    removeMessage: (id) => messageListApi.removeMessage(id),
+    clearMessages: () => messageListApi.clearMessages(),
+    clearInput: () => inputAreaApi.clearInput(),
     setLoading,
     setCancellable,
     clearCancellable,
-    showToast,
-    hideToast,
-    showEmptyState,
-    clearEmptyState,
+    showToast: (opts) => toastApi.showToast(opts),
+    hideToast: () => toastApi.hideToast(),
+    showEmptyState: (type) => emptyStateApi.showEmptyState(type),
+    clearEmptyState: () => emptyStateApi.clearEmptyState(),
     setApiKeyRequired,
-    showToggleButton,
-    hideToggleButton,
-    isOpen: () => _open,
+    showToggleButton: () => toggleButtonApi.showToggleButton(),
+    hideToggleButton: () => toggleButtonApi.hideToggleButton(),
+    isOpen: () => toggleButtonApi.isOpen(),
   }
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSidebar } from '../src/sidebar.js'
+import { createSidebar } from '../src/sidebar/index.js'
 
 // Silence window.postMessage from seek_bridge.js in tests
 vi.spyOn(window, 'postMessage').mockImplementation(() => {})

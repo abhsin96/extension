@@ -3,7 +3,7 @@
  * Extracted from content_script.js so it can be unit-tested independently.
  */
 
-import { msgId, type SidebarApi } from './sidebar.js'
+import { msgId, type SidebarApi } from './sidebar/index.js'
 import { getErrorCopy } from './errors/messages.js'
 import { createStateMachine, STATES, type StateValue } from './uiState.js'
 import type { Turn } from './history.js'
@@ -258,7 +258,8 @@ export function createQaSession({
         text: answer,
         refused: res.data?.['refused'] as boolean | undefined,
         citations:
-          (res.data?.['citations'] as import('./sidebar.js').DisplayCitation[] | undefined) ?? [],
+          (res.data?.['citations'] as import('./sidebar/index.js').DisplayCitation[] | undefined) ??
+          [],
         animate: true,
       })
       if (storage) {

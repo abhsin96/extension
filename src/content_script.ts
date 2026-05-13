@@ -4,7 +4,7 @@
  */
 
 import { extractVideoId } from './utils/videoId.js'
-import { createSidebar } from './sidebar.js'
+import { createSidebar } from './sidebar/index.js'
 import { createQaSession } from './wiring.js'
 import { injectSeekBridge, seekVideo } from './utils/seek_bridge.js'
 import * as historyStorage from './history.js'
