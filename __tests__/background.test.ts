@@ -212,6 +212,42 @@ describe('INGEST_VIDEO', () => {
     }).not.toThrow()
   })
 
+  it('calls apiClient.ingest with stream: true when tabId is provided', async () => {
+    ;(apiClient.ingest as any).mockResolvedValue(INGEST_RESPONSE)
+    await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1', tabId: 42 })
+    expect(apiClient.ingest).toHaveBeenCalledWith('vid1', expect.objectContaining({ stream: true }))
+  })
+
+  it('sends INGEST_PROGRESS to the tab via chrome.tabs.sendMessage', async () => {
+    // Mock chrome.tabs.sendMessage
+    const mockSendMessage = vi.fn().mockResolvedValue(undefined)
+    ;(global as any).chrome = {
+      ...((global as any).chrome || {}),
+      tabs: { sendMessage: mockSendMessage },
+    }
+    ;(apiClient.ingest as any).mockImplementationOnce(async (_id: string, opts: any) => {
+      opts.onProgress?.('Fetching', 20)
+      return INGEST_RESPONSE
+    })
+
+    await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1', tabId: 42 })
+
+    expect(mockSendMessage).toHaveBeenCalledWith(42, {
+      type: 'INGEST_PROGRESS',
+      step: 'Fetching',
+      pct: 20,
+    })
+  })
+
+  it('falls back to stream: false when tabId is absent', async () => {
+    ;(apiClient.ingest as any).mockResolvedValue(INGEST_RESPONSE)
+    await dispatch({ type: 'INGEST_VIDEO', videoId: 'vid1' })
+    expect(apiClient.ingest).toHaveBeenCalledWith(
+      'vid1',
+      expect.not.objectContaining({ stream: true }),
+    )
+  })
+
   it('returns ok: false on TranscriptDisabledError', async () => {
     const err = Object.assign(new Error('no transcript'), { code: 'TRANSCRIPT_DISABLED' })
     ;(apiClient.ingest as any).mockRejectedValue(err)
