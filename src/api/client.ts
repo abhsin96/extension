@@ -252,9 +252,8 @@ const apiClient = {
     {
       k = 5,
       stream = false,
-      advanced = true,
       threadId = null as string | null,
-    }: { k?: number; stream?: boolean; advanced?: boolean; threadId?: string | null } = {},
+    }: { k?: number; stream?: boolean; threadId?: string | null } = {},
   ): Promise<AskResponse> {
     let raw: RawQueryResponse
     try {
@@ -265,7 +264,6 @@ const apiClient = {
           question,
           k,
           stream,
-          advanced,
           // Once the server has issued a thread_id it maintains history
           // server-side.  Only send the local history on the very first turn
           // (no thread_id yet) to seed or restore the thread.
@@ -280,7 +278,6 @@ const apiClient = {
       throw err
     }
 
-    // Handle both simple and advanced mode responses
     const refused = raw.refused ?? raw.answer?.toLowerCase().includes(REFUSAL_SENTINEL) ?? false
 
     return {
