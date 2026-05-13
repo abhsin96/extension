@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { refresh } from '../src/popup.js'
+import { refresh, loadCurrentVideo } from '../src/popup.js'
 
 // Mock chrome API
 const mockSendMessage = vi.fn()
@@ -128,5 +128,68 @@ describe('popup refresh()', () => {
 
     // Should throw the error since there's no try-catch in refresh()
     await expect(refresh()).rejects.toThrow('Network error')
+  })
+})
+
+describe('popup loadCurrentVideo()', () => {
+  let mockDotVideo: any, mockVideoId: any
+
+  beforeEach(() => {
+    // Create mock DOM elements
+    mockDotVideo = { className: '' }
+    mockVideoId = { textContent: '' }
+
+    mockGetElementById.mockImplementation((id) => {
+      switch (id) {
+        case 'dot-video':
+          return mockDotVideo
+        case 'video-id':
+          return mockVideoId
+        case 'dot-backend':
+        case 'val-backend':
+        case 'dot-apikey':
+        case 'val-apikey':
+          return { className: '', textContent: '' }
+        default:
+          return null
+      }
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should handle YouTube watch URL with video ID', async () => {
+    const mockTab = { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }
+    ;(chrome.tabs.query as any).mockResolvedValue([mockTab])
+
+    await loadCurrentVideo()
+
+    expect(chrome.tabs.query).toHaveBeenCalledWith({ active: true, currentWindow: true })
+    expect(mockDotVideo.className).toBe('dot ok')
+    expect(mockVideoId.textContent).toBe('dQw4w9WgXcQ')
+  })
+
+  it('should handle non-YouTube URL', async () => {
+    const mockTab = { url: 'https://google.com' }
+    ;(chrome.tabs.query as any).mockResolvedValue([mockTab])
+
+    await loadCurrentVideo()
+
+    expect(chrome.tabs.query).toHaveBeenCalledWith({ active: true, currentWindow: true })
+    expect(mockDotVideo.className).toBe('dot warn')
+    expect(mockVideoId.textContent).toBe('Not a YouTube video page')
+  })
+
+  it('should handle active tab with no URL (undefined)', async () => {
+    const mockTab = { url: undefined }
+    ;(chrome.tabs.query as any).mockResolvedValue([mockTab])
+
+    await loadCurrentVideo()
+
+    expect(chrome.tabs.query).toHaveBeenCalledWith({ active: true, currentWindow: true })
+    expect(mockDotVideo.className).toBe('dot warn')
+    expect(mockVideoId.textContent).toBe('Not a YouTube video page')
   })
 })
